@@ -1,0 +1,62 @@
+name: PyTorch Out-of-Tree CI
+
+run-name: >-
+  PyTorch CI -
+  ${{
+    github.event.client_payload.event_type == 'pull_request' &&
+      format('PR #{0} ({1})',
+        github.event.client_payload.payload.pull_request.number,
+        github.event.client_payload.payload.action) ||
+    github.event.client_payload.event_type == 'push' &&
+      format('Push {0} ({1})',
+        github.event.client_payload.payload.ref,
+        github.event.client_payload.payload.base_ref || github.event.client_payload.payload.after)
+  }}
+
+on:
+  repository_dispatch:
+    types: [pull_request, push]
+
+concurrency:
+  group: >-
+    pytorch-ci-${{ github.event.client_payload.payload.repository.full_name }}-${{ github.event.client_payload.payload.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.setup.outputs.should-run }}
+      sha: ${{ steps.setup.outputs.sha }}
+    steps:
+      - name: Set up variables
+        id: setup
+        run: |
+          # Log the github.event for future reference
+          echo "${{ toJson(github.event) }}" >> $GITHUB_STEP_SUMMARY
+
+          if ${{ github.event.client_payload.event_type == 'push' }}; then
+            echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
+            if ${{ github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
+              echo "should-run=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  ci:
+    if: ${{ needs.setup.outputs.should-run }}
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PyTorch at triggered commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ needs.setup.outputs.sha }}
+
+      - name: Build and test
+        run: |
+          # Your build and test commands
+          echo "Running tests against PyTorch..."
