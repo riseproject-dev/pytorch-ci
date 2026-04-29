@@ -68,6 +68,8 @@ jobs:
       GITHUB_REF: ${{ needs.setup.outputs.ref }}
       BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
       DOCKER_REGISTRY: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
+      DOCKER_USERNAME: nologin
+      DOCKER_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}
       DOCKER_IMAGE_NAME: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
     timeout-minutes: 480
     steps:
@@ -84,21 +86,17 @@ jobs:
         uses: riseproject-dev/test-infra/.github/actions/calculate-docker-image@main
         with:
           docker-registry: ${{ env.DOCKER_REGISTRY }}
+          docker-username: ${{ env.DOCKER_USERNAME }}
+          docker-password: ${{ env.DOCKER_PASSWORD }}
           docker-image-name: ${{ env.DOCKER_IMAGE_NAME }}
-          scw-secret-key: ${{ secrets.SCW_SECRET_KEY }}
-
-      - name: Use following to pull public copy of the image
-        id: print-ghcr-mirror
-        env:
-          ECR_DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-        shell: bash
-        run: |
-          tag=${ECR_DOCKER_IMAGE##*:}
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/ci-image:${tag/:/-}"
+          docker-build-timeout-minutes: 180
 
       - name: Pull docker image
         uses: riseproject-dev/test-infra/.github/actions/pull-docker-image@main
         with:
+          docker-registry: ${{ env.DOCKER_REGISTRY }}
+          docker-username: ${{ env.DOCKER_USERNAME }}
+          docker-password: ${{ env.DOCKER_PASSWORD }}
           docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
 
       - name: Build
