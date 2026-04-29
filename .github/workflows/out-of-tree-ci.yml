@@ -58,20 +58,79 @@ jobs:
           ```
           EOF
 
-  linux-noble-riscv64-py3_12-build:
+  docker-build:
     if: ${{ needs.setup.outputs.should-run == 'true' }}
     needs: [setup]
-    name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 240
     env:
-      # Need to override some github variables as we are running from a different repository
-      GITHUB_REF: ${{ needs.setup.outputs.ref }}
       BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
       DOCKER_REGISTRY: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
       DOCKER_USERNAME: nologin
       DOCKER_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}
       DOCKER_IMAGE_NAME: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+    steps:
+      - name: Checkout PyTorch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ needs.setup.outputs.ref }}
+          submodules: recursive
+
+      - name: Calculate docker image
+        id: calculate-docker-image
+        uses: riseproject-dev/test-infra/.github/actions/calculate-docker-image@main
+        with:
+          docker-registry: ${{ env.DOCKER_REGISTRY }}
+          docker-username: ${{ env.DOCKER_USERNAME }}
+          docker-password: ${{ env.DOCKER_PASSWORD }}
+          docker-image-name: ${{ env.DOCKER_IMAGE_NAME }}
+          docker-build-timeout-minutes: 180
+          push: true
+
+      - name: Pull docker image
+        uses: riseproject-dev/test-infra/.github/actions/pull-docker-image@main
+        with:
+          docker-registry: ${{ env.DOCKER_REGISTRY }}
+          docker-username: ${{ env.DOCKER_USERNAME }}
+          docker-password: ${{ env.DOCKER_PASSWORD }}
+          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
+
+      - uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
+        name: Push to https://ghcr.io/
+        id: push-to-ghcr-io
+        env:
+          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
+        with:
+          shell: bash
+          timeout_minutes: 60
+          max_attempts: 5
+          retry_wait_seconds: 90
+          command: |
+            ghcr_image="ghcr.io/${{ github.repository }}/ci-image"
+            tag=${DOCKER_IMAGE##*:}
+            # Push docker image to the ghcr.io
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u pytorch --password-stdin
+            docker tag "${DOCKER_IMAGE}" "${ghcr_image}:${tag}"
+            docker push "${ghcr_image}:${tag}"
+
+      - name: Teardown Linux
+        uses: pytorch/test-infra/.github/actions/teardown-linux@main
+        if: always()
+
+
+  linux-noble-riscv64-py3_12-build:
+    if: ${{ needs.setup.outputs.should-run == 'true' }}
+    needs: [setup]
+    name: linux-noble-riscv64-py3.12
+    runs-on: ubuntu-24.04-riscv
     timeout-minutes: 480
+    env:
+      BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
+      DOCKER_REGISTRY: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
+      DOCKER_USERNAME: nologin
+      DOCKER_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}
+      DOCKER_IMAGE_NAME: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
       - name: Checkout PyTorch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
