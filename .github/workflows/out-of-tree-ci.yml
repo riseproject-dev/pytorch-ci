@@ -16,7 +16,7 @@ on:
 
 concurrency:
   group: >-
-    pytorch-ci-${{ github.event.client_payload.payload.repository.full_name }}-${{ github.run_id }}
+    pytorch-ci-${{ github.event.client_payload.payload.repository.full_name }}-${{ github.event.client_payload.payload.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -28,6 +28,7 @@ jobs:
     outputs:
       should-run: ${{ steps.setup.outputs.should-run }}
       sha: ${{ steps.setup.outputs.sha }}
+      ref: ${{ steps.setup.outputs.ref }}
     steps:
       - name: Set up variables
         id: setup
@@ -37,6 +38,7 @@ jobs:
             test "${{ github.event.client_payload.payload.after }}" != "0000000000000000000000000000000000000000" || \
               (echo "github.event.client_payload.payload.after should not be all zeroes"; exit 1)
             echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ github.event.client_payload.payload.ref }}" >> $GITHUB_OUTPUT
             if ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/trunk/') && github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
               # It's a push to refs/heads/main
               echo "should-run=true" >> $GITHUB_OUTPUT
@@ -56,18 +58,155 @@ jobs:
           ```
           EOF
 
-  ci:
+  linux-noble-riscv64-py3_12-build:
     if: ${{ needs.setup.outputs.should-run == 'true' }}
     needs: [setup]
+    name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
+    env:
+      # Need to override some github variables as we are running from a different repository
+      GITHUB_REF: ${{ needs.setup.outputs.ref }}
+      BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
+      DOCKER_REGISTRY: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
+      DOCKER_IMAGE_NAME: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+    timeout-minutes: 480
     steps:
-      - name: Checkout PyTorch at triggered commit
+      - name: Checkout PyTorch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: pytorch/pytorch
           ref: ${{ needs.setup.outputs.sha }}
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Build and test
+      - name: Calculate docker image
+        id: calculate-docker-image
+        uses: riseproject-dev/test-infra/.github/actions/calculate-docker-image@main
+        with:
+          docker-registry: ${{ env.DOCKER_REGISTRY }}
+          docker-image-name: ${{ env.DOCKER_IMAGE_NAME }}
+          scw-secret-key: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: Use following to pull public copy of the image
+        id: print-ghcr-mirror
+        env:
+          ECR_DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
+        shell: bash
         run: |
-          # Your build and test commands
-          echo "Running tests against PyTorch..."
+          tag=${ECR_DOCKER_IMAGE##*:}
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/ci-image:${tag/:/-}"
+
+      - name: Pull docker image
+        uses: riseproject-dev/test-infra/.github/actions/pull-docker-image@main
+        with:
+          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
+
+      - name: Build
+        id: build
+        env:
+          BUILD_ENVIRONMENT: ${{ env.BUILD_ENVIRONMENT }}
+          BRANCH: ${{ needs.setup.outputs.ref }}
+          SHA1: ${{ needs.setup.outputs.sha }}
+          # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCCACHE_BUCKET: rise-pytorch-ci-cache
+          SCCACHE_REGION: fr-par
+          SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
+          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
+          DOCKER_IMAGE_S390X: ${{ env.DOCKER_IMAGE_NAME }}
+          XLA_CUDA: ${{ contains(env.BUILD_ENVIRONMENT, 'xla') && '0' || '' }}
+          OUR_GITHUB_JOB_ID: ${{ github.run_id }}
+          RUNNER: ubuntu-24.04-riscv
+        run: |
+          set -x
+          START_TIME=$(date +%s)
+          JENKINS_USER="--user jenkins"
+          USED_IMAGE="${DOCKER_IMAGE}"
+          DOCKER_SHELL_CMD=
+
+          # Leaving 1GB for the runner and other things
+          TOTAL_AVAILABLE_MEMORY_IN_GB=$(awk '/MemTotal/ { printf "%.3f \n", $2/1024/1024 - 1 }' /proc/meminfo)
+          # https://docs.docker.com/engine/containers/resource_constraints/#--memory-swap-details, the 3GB swap
+          # comes from https://github.com/pytorch/test-infra/pull/6058
+          TOTAL_MEMORY_WITH_SWAP=$(("${TOTAL_AVAILABLE_MEMORY_IN_GB%.*}" + 3))
+
+          # detached container should get cleaned up by teardown_ec2_linux
+          # Used for JENKINS_USER and DOCKER_SHELL_CMD, which can be empty
+          # shellcheck disable=SC2086
+          container_name=$(docker run \
+            -e BUILD_ENVIRONMENT="${BUILD_ENVIRONMENT}" \
+            -e MAX_JOBS="$(nproc)" \
+            -e PR_NUMBER="${PR_NUMBER}" \
+            -e SHA1="${SHA1}" \
+            -e BRANCH="${BRANCH}" \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e SCCACHE_BUCKET="${SCCACHE_BUCKET}" \
+            -e SCCACHE_REGION="${SCCACHE_REGION}" \
+            -e SCCACHE_ENDPOINT="${SCCACHE_ENDPOINT}" \
+            -e XLA_CUDA="${XLA_CUDA}" \
+            -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
+            -e SKIP_SCCACHE_INITIALIZATION=1 \
+            -e TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
+            -e PR_LABELS="${PR_LABELS}" \
+            -e OUR_GITHUB_JOB_ID="${OUR_GITHUB_JOB_ID}" \
+            -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
+            -e BUILD_ADDITIONAL_PACKAGES="${BUILD_ADDITIONAL_PACKAGES}" \
+            -e RUNNER="${RUNNER}" \
+            -e ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}" \
+            -e ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}" \
+            -e ACTIONS_CACHE_SERVICE_V2="${ACTIONS_CACHE_SERVICE_V2}" \
+            --memory="${TOTAL_AVAILABLE_MEMORY_IN_GB%.*}g" \
+            --memory-swap="${TOTAL_MEMORY_WITH_SWAP}g" \
+            --env-file="/tmp/github_env_${GITHUB_RUN_ID}" \
+            --security-opt seccomp=unconfined \
+            --cap-add=SYS_PTRACE \
+            --tty \
+            --detach \
+            ${JENKINS_USER} \
+            -v "${GITHUB_WORKSPACE}:/var/lib/jenkins/workspace" \
+            -w /var/lib/jenkins/workspace \
+            "${USED_IMAGE}" \
+            ${DOCKER_SHELL_CMD}
+          )
+
+          docker exec -t "${container_name}" sh -c '.ci/pytorch/build.sh'
+
+          END_TIME=$(date +%s)
+          echo "build_time=$((END_TIME - START_TIME))" >> "$GITHUB_OUTPUT"
+
+      - name: Store PyTorch Build Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.build.outcome != 'skipped'
+        with:
+          name: ${{ env.BUILD_ENVIRONMENT }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            dist/
+            build/custom_test_artifacts
+            build/lib
+            build/bin
+            .additional_ci_files
+
+      - name: Pring sscache stats
+        if: always() && steps.build.outcome != 'skipped'
+        run: sccache --show-adv-stats
+
+      - name: Teardown Linux
+        uses: pytorch/test-infra/.github/actions/teardown-linux@main
+        if: always()
+
+    # uses: riseproject-dev/pytorch/.github/workflows/_linux-build.yml@manywheel-riscv64-1
+    # with:
+    #   build-environment: linux-noble-riscv64-py3.12
+    #   docker-registry: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
+    #   docker-image-name: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+    #   runner: ubuntu-24.04-riscv
+    #   test-matrix: |
+    #     { include: [
+    #       { config: "default", shard: 1, num_shards: 3, runner: "ubuntu-24.04-riscv" },
+    #       { config: "default", shard: 2, num_shards: 3, runner: "ubuntu-24.04-riscv" },
+    #       { config: "default", shard: 3, num_shards: 3, runner: "ubuntu-24.04-riscv" },
+    #     ]}
+    # secrets: inherit
