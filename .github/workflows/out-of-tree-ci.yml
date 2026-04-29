@@ -33,7 +33,7 @@ jobs:
         id: setup
         run: |
           set -x # log executed commands
-          if ${{ github.event.client_payload.event_type == 'push' }}; then
+          if ${{ github.event.client_payload.event_type == 'push' && !github.event.client_payload.payload.deleted }}; then
             test "${{ github.event.client_payload.payload.after }}" != "0000000000000000000000000000000000000000" || \
               (echo "github.event.client_payload.payload.after should not be all zeroes"; exit 1)
             echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
