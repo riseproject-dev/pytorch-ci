@@ -33,6 +33,7 @@ jobs:
       - name: Set up variables
         id: setup
         run: |
+          set -x # log executed commands
           if ${{ github.event.client_payload.event_type == 'push' }}; then
             echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
             if ${{ github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
