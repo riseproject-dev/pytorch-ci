@@ -44,9 +44,11 @@ jobs:
         if: always()
         run: |
           # Log the github.event for future reference
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo '${{ toJson(github.event) }}' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          ```
+          ${{ toJson(github.event) }}
+          ```
+          EOF
 
   ci:
     if: ${{ needs.setup.outputs.should-run }}
