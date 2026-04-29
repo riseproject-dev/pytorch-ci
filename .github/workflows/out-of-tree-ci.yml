@@ -4,9 +4,8 @@ run-name: >-
   PyTorch CI -
   ${{
     github.event.client_payload.event_type == 'push' &&
-      format('Push {0} ({1})',
-        github.event.client_payload.payload.ref,
-        github.event.client_payload.payload.base_ref || github.event.client_payload.payload.after)
+      format('Push {0}',
+        github.event.client_payload.payload.ref)
   }}
 
 on:
