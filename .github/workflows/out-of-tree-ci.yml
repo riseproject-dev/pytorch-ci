@@ -34,8 +34,14 @@ jobs:
         run: |
           set -x # log executed commands
           if ${{ github.event.client_payload.event_type == 'push' }}; then
+            test "${{ github.event.client_payload.payload.after }}" != "0000000000000000000000000000000000000000" || \
+              (echo "github.event.client_payload.payload.after should not be all zeroes"; exit 1)
             echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
-            if ${{ github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
+            if ${{ startsWith(github.event.client_payload.ref, 'refs/tags/trunk/') && github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
+              # It's a push to refs/heads/main
+              echo "should-run=true" >> $GITHUB_OUTPUT
+            elif ${{ startsWith(github.event.client_payload.ref, 'refs/tags/ciflow/riscv64/') }}
+              # It's a `ciflow/riscv64` label
               echo "should-run=true" >> $GITHUB_OUTPUT
             fi
           fi
@@ -51,9 +57,9 @@ jobs:
           EOF
 
   ci:
-    if: ${{ needs.setup.outputs.should-run }}
+    if: ${{ needs.setup.outputs.should-run == 'true' }}
     needs: [setup]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-riscv
     steps:
       - name: Checkout PyTorch at triggered commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
