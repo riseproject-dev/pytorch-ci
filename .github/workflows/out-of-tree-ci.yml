@@ -74,10 +74,6 @@ jobs:
         pytorch-ci-${{ github.event.client_payload.payload.ref }}
       cancel-in-progress: true
     steps:
-      - name: Set up environment variables
-        run: |
-          echo "DOCKER_IMAGE=${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}" >> $GITHUB_ENV
-
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -87,10 +83,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull Container Image
-        run: |
-          docker pull "${DOCKER_IMAGE}"
 
       - name: Checkout PyTorch Repository at ${{ needs.setup.outputs.ref }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -104,6 +96,33 @@ jobs:
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           git apply -3 ../pytorch-build-sh.patch
+
+      - name: Pull Container Image
+        working-directory: ${{ github.workspace }}/pytorch
+        run: |
+          set +e
+          set -x
+
+          # FIXME: once https://github.com/pytorch/pytorch/pull/182278 is merged, we can use
+          # the `git rev-parse HEAD:.ci/docker` suffix since the image would be built upstream
+          # DOCKER_IMAGE="${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}-$(git rev-parse HEAD:.ci/docker)"
+          DOCKER_IMAGE="${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}"
+
+          START_TIME=$(date +%s)
+          # Wait up to 180 minutes
+          while [[ $(( $(date +%s) - 10800 )) -lt $START_TIME ]]; do
+            # Check if image already exists, if it does then pull it and exit
+            if docker manifest inspect "${DOCKER_IMAGE}"; then
+              docker pull "${DOCKER_IMAGE}"
+              echo "DOCKER_IMAGE=${DOCKER_IMAGE}" >> $GITHUB_ENV
+              exit 0
+            fi
+
+            sleep 300
+          done
+
+          echo "::error:: Failed to pull the build container image in 180 minutes; did it failed to build?"
+          exit 1
 
       - name: Build
         id: build
