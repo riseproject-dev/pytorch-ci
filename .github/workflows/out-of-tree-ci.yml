@@ -68,11 +68,20 @@ jobs:
     timeout-minutes: 480
     env:
       BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
-      DOCKER_REGISTRY: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
-      DOCKER_USERNAME: nologin
-      DOCKER_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}
-      DOCKER_IMAGE_NAME: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+      # DOCKER_IMAGE: ghcr.io/pytorch/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+      DOCKER_IMAGE: ghcr.io/riseproject-dev/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Container Image
+        run: |
+          docker pull "${DOCKER_IMAGE}"
+
       - name: Checkout PyTorch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -81,17 +90,9 @@ jobs:
           submodules: recursive
           path: pytorch
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build
         id: build
         env:
-          BUILD_ENVIRONMENT: ${{ env.BUILD_ENVIRONMENT }}
           BRANCH: ${{ needs.setup.outputs.ref }}
           SHA1: ${{ needs.setup.outputs.sha }}
           # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
@@ -100,8 +101,6 @@ jobs:
           SCCACHE_BUCKET: rise-pytorch-ci-cache
           SCCACHE_REGION: fr-par
           SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
-          # DOCKER_IMAGE: ghcr.io/pytorch/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
-          DOCKER_IMAGE: ghcr.io/riseproject-dev/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
         run: |
           set -x
           START_TIME=$(date +%s)
@@ -142,7 +141,6 @@ jobs:
             --cap-add=SYS_PTRACE \
             --tty \
             --detach \
-            --pull missing \
             --user jenkins \
             -v "${GITHUB_WORKSPACE}/pytorch:/var/lib/jenkins/workspace" \
             -w /var/lib/jenkins/workspace \
