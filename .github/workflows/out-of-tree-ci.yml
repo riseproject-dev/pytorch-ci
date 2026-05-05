@@ -70,7 +70,7 @@ jobs:
     needs: [setup]
     name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
-    timeout-minutes: 480
+    timeout-minutes: 1440 # 24h
     env:
       BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
     steps:
