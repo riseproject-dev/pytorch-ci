@@ -14,11 +14,6 @@ on:
       # - pull_request
       - push
 
-concurrency:
-  group: >-
-    pytorch-ci-${{ github.event.client_payload.payload.repository.full_name }}-${{ github.event.client_payload.payload.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
   packages: read
@@ -40,7 +35,7 @@ jobs:
         id: setup
         run: |
           set -x # log executed commands
-          if ${{ github.event.client_payload.event_type == 'push' && !github.event.client_payload.payload.deleted }}; then
+          if ${{ github.event.client_payload.payload.repository.full_name == 'pytorch/pytorch' && github.event.client_payload.event_type == 'push' && !github.event.client_payload.payload.deleted }}; then
             test "${{ github.event.client_payload.payload.after }}" != "0000000000000000000000000000000000000000" || \
               (echo "github.event.client_payload.payload.after should not be all zeroes"; exit 1)
             echo "sha=${{ github.event.client_payload.payload.after }}" >> $GITHUB_OUTPUT
@@ -48,6 +43,9 @@ jobs:
             if ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/trunk/') && github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
               # It's a push to refs/heads/main
               echo "should-run=true" >> $GITHUB_OUTPUT
+            # elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/trunk/') }}; then
+            #   # It's a push to a pull request
+            #   echo "should-run=true" >> $GITHUB_OUTPUT
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/riscv64/') }}; then
               # It's a `ciflow/riscv64` label
               echo "should-run=true" >> $GITHUB_OUTPUT
@@ -71,6 +69,10 @@ jobs:
     name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
+    concurrency:
+      group: >-
+        pytorch-ci-${{ github.event.client_payload.payload.ref }}
+      cancel-in-progress: true
     steps:
       - name: Set up environment variables
         run: |
