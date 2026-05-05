@@ -43,9 +43,9 @@ jobs:
             if ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/trunk/') && github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
               # It's a push to refs/heads/main
               echo "should-run=true" >> $GITHUB_OUTPUT
-            # elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/trunk/') }}; then
-            #   # It's a push to a pull request
-            #   echo "should-run=true" >> $GITHUB_OUTPUT
+            elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/trunk/') }}; then
+              # It's a push to a pull request
+              echo "should-run=true" >> $GITHUB_OUTPUT
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/riscv64/') }}; then
               # It's a `ciflow/riscv64` label
               echo "should-run=true" >> $GITHUB_OUTPUT
