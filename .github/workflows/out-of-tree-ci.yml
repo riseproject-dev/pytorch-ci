@@ -24,9 +24,9 @@ permissions:
   packages: read
 
 env:
-  # FIXME: switch to ghcr.io/pytorch/pytorch once https://github.com/pytorch/pytorch/pull/182278 has been merged
-  # DOCKER_IMAGE: ghcr.io/pytorch/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
-  DOCKER_IMAGE: ghcr.io/riseproject-dev/pytorch/ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
+  # FIXME: switch to ghcr.io to pull ghcr.io/pytorch/ci-image once https://github.com/pytorch/pytorch/pull/182278 has been merged
+  DOCKER_REGISTRY: ghcr.io/riseproject-dev
+  BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
 
 jobs:
   setup:
@@ -71,9 +71,11 @@ jobs:
     name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
-    env:
-      BUILD_ENVIRONMENT: linux-noble-riscv64-py3.12
     steps:
+      - name: Set up environment variables
+        run: |
+          echo "DOCKER_IMAGE=${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}" >> $GITHUB_ENV
+
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
