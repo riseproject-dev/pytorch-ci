@@ -142,7 +142,7 @@ jobs:
             --cap-add=SYS_PTRACE \
             --tty \
             --detach \
-            --pull \
+            --pull missing \
             --user jenkins \
             -v "${GITHUB_WORKSPACE}/pytorch:/var/lib/jenkins/workspace" \
             -w /var/lib/jenkins/workspace \
