@@ -1,12 +1,4 @@
-name: PyTorch Out-of-Tree CI
-
-run-name: >-
-  PyTorch CI -
-  ${{
-    github.event.client_payload.event_type == 'push' &&
-      format('Push {0}',
-        github.event.client_payload.payload.ref)
-  }}
+name: PyTorch Out-of-Tree Dispatch
 
 on:
   repository_dispatch:
@@ -14,22 +6,14 @@ on:
       # - pull_request
       - push
 
-permissions:
-  contents: read
-  packages: read
+run-name: Dispatch - ${{ github.event.client_payload.payload.ref }}
 
-env:
-  # FIXME: switch to ghcr.io to pull ghcr.io/pytorch/ci-image once https://github.com/pytorch/pytorch/pull/182278 has been merged
-  DOCKER_REGISTRY: ghcr.io/riseproject-dev
-  BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
+permissions:
+  actions: write
 
 jobs:
-  setup:
+  trigger:
     runs-on: ubuntu-latest
-    outputs:
-      should-run: ${{ steps.setup.outputs.should-run }}
-      sha: ${{ steps.setup.outputs.sha }}
-      ref: ${{ steps.setup.outputs.ref }}
     steps:
       - name: Set up variables
         id: setup
@@ -52,6 +36,18 @@ jobs:
             fi
           fi
 
+      - name: Trigger CI workflow
+        if: steps.setup.outputs.should-run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api
+          --method POST
+          /repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches
+          -f 'ref=${{ github.event.repository.default_branch }}'
+          -f 'inputs[ref]=${{ steps.setup.outputs.ref }}'
+          -f 'inputs[sha]=${{ steps.setup.outputs.sha }}'
+
       - name: Log event in step summary
         if: always()
         run: |
@@ -61,156 +57,3 @@ jobs:
           ${{ toJson(github.event) }}
           ```
           EOF
-
-
-  linux-noble-riscv64-py3_12-build:
-    if: ${{ needs.setup.outputs.should-run == 'true' }}
-    needs: [setup]
-    name: linux-noble-riscv64-py3.12
-    runs-on: ubuntu-24.04-riscv
-    timeout-minutes: 1440 # 24h
-    concurrency:
-      group: >-
-        pytorch-ci-${{ github.event.client_payload.payload.ref }}
-      cancel-in-progress: true
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout PyTorch Repository at ${{ needs.setup.outputs.ref }}
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: pytorch/pytorch
-          ref: ${{ needs.setup.outputs.ref }}
-          submodules: recursive
-          path: pytorch
-
-      - name: Apply PyTorch patch
-        working-directory: ${{ github.workspace }}/pytorch
-        run: |
-          git apply -3 ../pytorch-build-sh.patch
-
-      - name: Pull Container Image
-        working-directory: ${{ github.workspace }}/pytorch
-        run: |
-          set +e
-          set -x
-
-          # FIXME: once https://github.com/pytorch/pytorch/pull/182278 is merged, we can use
-          # the `git rev-parse HEAD:.ci/docker` suffix since the image would be built upstream
-          # DOCKER_IMAGE="${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}-$(git rev-parse HEAD:.ci/docker)"
-          DOCKER_IMAGE="${{ env.DOCKER_REGISTRY }}/pytorch/ci-image:${{ env.BUILD_ENVIRONMENT }}"
-
-          START_TIME=$(date +%s)
-          # Wait up to 180 minutes
-          while [[ $(( $(date +%s) - 10800 )) -lt $START_TIME ]]; do
-            # Check if image already exists, if it does then pull it and exit
-            if docker manifest inspect "${DOCKER_IMAGE}"; then
-              docker pull "${DOCKER_IMAGE}"
-              echo "DOCKER_IMAGE=${DOCKER_IMAGE}" >> $GITHUB_ENV
-              exit 0
-            fi
-
-            sleep 300
-          done
-
-          echo "::error:: Failed to pull the build container image in 180 minutes; did it failed to build?"
-          exit 1
-
-      - name: Build
-        id: build
-        env:
-          BRANCH: ${{ needs.setup.outputs.ref }}
-          SHA1: ${{ needs.setup.outputs.sha }}
-          # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
-          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCCACHE_BUCKET: rise-pytorch-ci-cache
-          SCCACHE_REGION: fr-par
-          SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
-        working-directory: ${{ github.workspace }}/pytorch
-        run: |
-          set -x
-          START_TIME=$(date +%s)
-
-          # Leaving 1GB for the runner and other things
-          TOTAL_AVAILABLE_MEMORY_IN_GB=$(awk '/MemTotal/ { printf "%.3f \n", $2/1024/1024 - 1 }' /proc/meminfo)
-          # https://docs.docker.com/engine/containers/resource_constraints/#--memory-swap-details, the 3GB swap
-          # comes from https://github.com/pytorch/test-infra/pull/6058
-          TOTAL_MEMORY_WITH_SWAP=$(("${TOTAL_AVAILABLE_MEMORY_IN_GB%.*}" + 3))
-
-          # shellcheck disable=SC2086
-          container_name=$(docker run \
-            -e BUILD_ENVIRONMENT="${BUILD_ENVIRONMENT}" \
-            -e MAX_JOBS="$(nproc)" \
-            -e PR_NUMBER="${PR_NUMBER}" \
-            -e SHA1="${SHA1}" \
-            -e BRANCH="${BRANCH}" \
-            -e AWS_ACCESS_KEY_ID \
-            -e AWS_SECRET_ACCESS_KEY \
-            -e SCCACHE_BUCKET="${SCCACHE_BUCKET}" \
-            -e SCCACHE_REGION="${SCCACHE_REGION}" \
-            -e SCCACHE_ENDPOINT="${SCCACHE_ENDPOINT}" \
-            -e XLA_CUDA="${XLA_CUDA}" \
-            -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
-            -e SKIP_SCCACHE_INITIALIZATION=1 \
-            -e TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" \
-            -e PR_LABELS="${PR_LABELS}" \
-            -e OUR_GITHUB_JOB_ID="${OUR_GITHUB_JOB_ID}" \
-            -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
-            -e BUILD_ADDITIONAL_PACKAGES="${BUILD_ADDITIONAL_PACKAGES}" \
-            -e RUNNER="${RUNNER}" \
-            -e ACTIONS_RESULTS_URL="${ACTIONS_RESULTS_URL}" \
-            -e ACTIONS_RUNTIME_TOKEN="${ACTIONS_RUNTIME_TOKEN}" \
-            -e ACTIONS_CACHE_SERVICE_V2="${ACTIONS_CACHE_SERVICE_V2}" \
-            --memory="${TOTAL_AVAILABLE_MEMORY_IN_GB%.*}g" \
-            --memory-swap="${TOTAL_MEMORY_WITH_SWAP}g" \
-            --security-opt seccomp=unconfined \
-            --cap-add=SYS_PTRACE \
-            --tty \
-            --detach \
-            --user jenkins \
-            -v "$(pwd -P):/var/lib/jenkins/workspace" \
-            -w /var/lib/jenkins/workspace \
-            "${DOCKER_IMAGE}"
-          )
-
-          docker exec -t "${container_name}" sh -c '.ci/pytorch/build.sh'
-
-          END_TIME=$(date +%s)
-          echo "build_time=$((END_TIME - START_TIME))" >> "$GITHUB_OUTPUT"
-
-      - name: Store PyTorch Build Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: steps.build.outcome != 'skipped'
-        with:
-          name: ${{ env.BUILD_ENVIRONMENT }}
-          retention-days: 14
-          if-no-files-found: error
-          path: |
-            dist/
-            build/custom_test_artifacts
-            build/lib
-            build/bin
-            .additional_ci_files
-
-    # uses: riseproject-dev/pytorch/.github/workflows/_linux-build.yml@manywheel-riscv64-1
-    # with:
-    #   build-environment: linux-noble-riscv64-py3.12
-    #   docker-registry: rg.fr-par.scw.cloud/rise-pytorch-ci-registry
-    #   docker-image-name: ci-image:pytorch-linux-noble-riscv64-py3.12-gcc14
-    #   runner: ubuntu-24.04-riscv
-    #   test-matrix: |
-    #     { include: [
-    #       { config: "default", shard: 1, num_shards: 3, runner: "ubuntu-24.04-riscv" },
-    #       { config: "default", shard: 2, num_shards: 3, runner: "ubuntu-24.04-riscv" },
-    #       { config: "default", shard: 3, num_shards: 3, runner: "ubuntu-24.04-riscv" },
-    #     ]}
-    # secrets: inherit
