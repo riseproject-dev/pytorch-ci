@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   setup:
@@ -79,6 +80,13 @@ jobs:
           ref: ${{ needs.setup.outputs.ref }}
           submodules: recursive
           path: pytorch
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
         id: build
