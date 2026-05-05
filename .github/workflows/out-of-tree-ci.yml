@@ -78,6 +78,7 @@ jobs:
           repository: pytorch/pytorch
           ref: ${{ needs.setup.outputs.ref }}
           submodules: recursive
+          path: ../pytorch
 
       - name: Build
         id: build
@@ -134,7 +135,7 @@ jobs:
             --tty \
             --detach \
             --user jenkins \
-            -v "${GITHUB_WORKSPACE}:/var/lib/jenkins/workspace" \
+            -v "${GITHUB_WORKSPACE}/../pytorch:/var/lib/jenkins/workspace" \
             -w /var/lib/jenkins/workspace \
             "${DOCKER_IMAGE}"
           )
