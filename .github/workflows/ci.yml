@@ -30,8 +30,24 @@ jobs:
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
     concurrency:
-      group: ${{ github.workflow_ref }}-${{ inputs.ref }}
-      cancel-in-progress: true
+      # For commits to main (refs/tags/trunk/*), we limit to 1 concurently running job. We just don't
+      # have enough machines, especially when the cache is cold (update to the toolchain or a commonly
+      # used header). I'm trying to figure out how we could be using distributing building between
+      # all the runners without having multiple runners building the same file concurently.
+      group: >-
+        ${{ github.workflow_ref }}-${{
+          case(
+            startsWith(inputs.ref, 'refs/tags/trunk/'), 'trunk',
+            inputs.ref
+          )
+        }}
+      cancel-in-progress: >-
+        ${{
+          case(
+            startsWith(inputs.ref, 'refs/tags/trunk/'), false,
+            true
+          )
+        }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
