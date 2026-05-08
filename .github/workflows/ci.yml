@@ -71,6 +71,9 @@ jobs:
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           git apply -3 ../pytorch-build-sh.patch
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git commit -m "{patch} Fix .ci/pytorch/build.sh for native builds on riscv64"
 
       - name: Pull Container Image
         working-directory: ${{ github.workspace }}/pytorch
