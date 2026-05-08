@@ -35,7 +35,7 @@ jobs:
       # used header). I'm trying to figure out how we could be using distributing building between
       # all the runners without having multiple runners building the same file concurently.
       group: >-
-        ${{ github.workflow_ref }}-${{
+        ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{
           case(
             startsWith(inputs.ref, 'refs/tags/trunk/'), 'trunk',
             inputs.ref
