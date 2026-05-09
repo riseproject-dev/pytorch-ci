@@ -98,6 +98,9 @@ jobs:
           SCCACHE_COORDINATOR_REDIS_USERNAME: rise-pytorch-ci-cache
           SCCACHE_COORDINATOR_REDIS_PASSWORD: ${{ secrets.COORDINATOR_REDIS_PASSWORD }}
           USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
+          # Force a fresh cache key per-workflow file so we exercise the cold-miss
+          # path on every dispatch (worst-case for coordinator contention).
+          SCCACHE_C_CUSTOM_CACHE_BUSTER: ${{ github.workflow_ref }}
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
@@ -124,6 +127,7 @@ jobs:
             -e SCCACHE_COORDINATOR_REDIS_USERNAME="${SCCACHE_COORDINATOR_REDIS_USERNAME}" \
             -e SCCACHE_COORDINATOR_REDIS_PASSWORD \
             -e USE_NINJA=${USE_NINJA} \
+            -e SCCACHE_C_CUSTOM_CACHE_BUSTER="${SCCACHE_C_CUSTOM_CACHE_BUSTER}" \
             -e XLA_CUDA="${XLA_CUDA}" \
             -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
             -e SKIP_SCCACHE_INITIALIZATION=1 \
@@ -160,10 +164,68 @@ jobs:
           sudo dpkg -i /tmp/make_4.4.1-2_riscv64.deb
           EOF
 
+          # Verify sccache + coordinator wiring before the real build. We want to
+          # catch (a) sccache binary missing the coordinator feature, (b) the
+          # SCCACHE_COORDINATOR_REDIS_* env vars not landing inside the
+          # container, and (c) the runner being unable to reach the redis host.
+          # The sccache server is left running so build.sh's first sccache
+          # invocation reuses it.
+          docker exec -i \
+            -e SCCACHE_LOG=sccache=debug,sccache::coordinator=trace,sccache::server=info \
+            -e SCCACHE_ERROR_LOG=/tmp/sccache.log \
+            pytorch-ci-build bash --norc --noprofile -eux -o pipefail <<'EOF'
+          echo "::group::sccache version + relevant env (secrets redacted)"
+          /opt/cache/bin/sccache --version
+          env | grep -E '^SCCACHE_|^AWS_' | sed -E 's/(PASSWORD|SECRET[^=]*|KEY[^=]*)=.+/\1=***/g' | sort
+          echo "::endgroup::"
+
+          echo "::group::TCP reachability to redis coordinator"
+          if timeout 5 bash -c "</dev/tcp/62.210.239.26/6379" 2>/dev/null; then
+            echo "redis: TCP reachable from runner"
+          else
+            echo "::error::redis: TCP NOT reachable from runner ($?). Coordinator will silently no-op."
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::start sccache server (with coordinator trace logging)"
+          /opt/cache/bin/sccache --start-server
+          # Server backgrounds itself; give it a moment to log config + connect to redis.
+          sleep 2
+          /opt/cache/bin/sccache --show-stats
+          echo "::endgroup::"
+
+          echo "::group::sccache server log (post-startup)"
+          if [[ -s /tmp/sccache.log ]]; then
+            cat /tmp/sccache.log
+            if grep -qE 'coordinator|RedisCoordinator|redis_lease' /tmp/sccache.log; then
+              echo "coordinator: engaged (matched coordinator/redis traces in startup log)"
+            else
+              echo "::warning::sccache startup log mentions no coordinator/redis activity \u2014 the coordinator may be silently disabled"
+            fi
+          else
+            echo "::warning::/tmp/sccache.log is empty \u2014 SCCACHE_LOG may not have taken effect"
+          fi
+          echo "::endgroup::"
+          EOF
+
           docker exec -t pytorch-ci-build sh -c '.ci/pytorch/build.sh'
+
+          # Persist the sccache server log so we can inspect coordinator
+          # behaviour after the run, even on success.
+          docker cp pytorch-ci-build:/tmp/sccache.log /tmp/sccache.log 2>/dev/null || true
 
           END_TIME=$(date +%s)
           echo "build_time=$((END_TIME - START_TIME))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload sccache log
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: sccache-log-${{ inputs.ref }}
+          path: /tmp/sccache.log
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Store PyTorch Build Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
