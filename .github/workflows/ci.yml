@@ -100,7 +100,7 @@ jobs:
           USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
           # Force a fresh cache key per-workflow file so we exercise the cold-miss
           # path on every dispatch (worst-case for coordinator contention).
-          SCCACHE_C_CUSTOM_CACHE_BUSTER: ${{ github.workflow_ref }}
+          SCCACHE_C_CUSTOM_CACHE_BUSTER: ${{ github.workflow_sha }}
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
