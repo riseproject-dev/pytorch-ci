@@ -29,25 +29,6 @@ jobs:
     name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
-    concurrency:
-      # For commits to main (refs/tags/trunk/*), we limit to 1 concurently running job. We just don't
-      # have enough machines, especially when the cache is cold (update to the toolchain or a commonly
-      # used header). I'm trying to figure out how we could be using distributing building between
-      # all the runners without having multiple runners building the same file concurently.
-      group: >-
-        ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{
-          case(
-            startsWith(inputs.ref, 'refs/tags/trunk/'), 'trunk',
-            inputs.ref
-          )
-        }}
-      cancel-in-progress: >-
-        ${{
-          case(
-            startsWith(inputs.ref, 'refs/tags/trunk/'), false,
-            true
-          )
-        }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -110,9 +91,14 @@ jobs:
           # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
           AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCCACHE_BUCKET: rise-pytorch-ci-cache
-          SCCACHE_REGION: fr-par
           SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
+          SCCACHE_REGION: fr-par
+          SCCACHE_BUCKET: rise-pytorch-ci-cache
+          SCCACHE_COORDINATOR_REDIS_ENDPOINT: tcp://62.210.239.26:6379
+          SCCACHE_COORDINATOR_REDIS_USERNAME: rise-pytorch-ci-cache
+          SCCACHE_COORDINATOR_REDIS_PASSWORD: ${{ secrets.COORDINATOR_REDIS_PASSWORD }}
+          USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
+          SCCACHE_RECACHE: 1 # DEBUG
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
@@ -125,17 +111,21 @@ jobs:
           TOTAL_MEMORY_WITH_SWAP=$(("${TOTAL_AVAILABLE_MEMORY_IN_GB%.*}" + 3))
 
           # shellcheck disable=SC2086
-          container_name=$(docker run \
+          docker run \
             -e BUILD_ENVIRONMENT="${BUILD_ENVIRONMENT}" \
-            -e MAX_JOBS="$(nproc)" \
             -e PR_NUMBER="${PR_NUMBER}" \
             -e SHA1="${SHA1}" \
             -e BRANCH="${BRANCH}" \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
-            -e SCCACHE_BUCKET="${SCCACHE_BUCKET}" \
-            -e SCCACHE_REGION="${SCCACHE_REGION}" \
             -e SCCACHE_ENDPOINT="${SCCACHE_ENDPOINT}" \
+            -e SCCACHE_REGION="${SCCACHE_REGION}" \
+            -e SCCACHE_BUCKET="${SCCACHE_BUCKET}" \
+            -e SCCACHE_COORDINATOR_REDIS_ENDPOINT="${SCCACHE_COORDINATOR_REDIS_ENDPOINT}" \
+            -e SCCACHE_COORDINATOR_REDIS_USERNAME="${SCCACHE_COORDINATOR_REDIS_USERNAME}" \
+            -e SCCACHE_COORDINATOR_REDIS_PASSWORD \
+            -e SCCACHE_RECACHE=${SCCACHE_RECACHE} \
+            -e USE_NINJA=${USE_NINJA} \
             -e XLA_CUDA="${XLA_CUDA}" \
             -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
             -e SKIP_SCCACHE_INITIALIZATION=1 \
@@ -155,12 +145,24 @@ jobs:
             --tty \
             --detach \
             --user jenkins \
+            --name pytorch-ci-build \
             -v "$(pwd -P):/var/lib/jenkins/workspace" \
             -w /var/lib/jenkins/workspace \
             "${DOCKER_IMAGE}"
-          )
 
-          docker exec -t "${container_name}" sh -c '.ci/pytorch/build.sh'
+          # download sccache with coordinator support
+          docker exec -i pytorch-ci-build bash --norc --noprofile -eux -o pipefail <<'EOF'
+          curl -fsSL https://github.com/luhenry/sccache/releases/download/v0.15.0-coordinator-redis/sccache-v0.15.0-coordinator-redis-riscv64gc-unknown-linux-musl.tar.gz | \
+            sudo tar -xvzf - -C /opt/cache/bin --strip-components 1 --wildcards sccache-*-riscv64gc-unknown-linux-musl/sccache
+          EOF
+
+          # download make v4.4, required for jobserver w/ fifo support
+          docker exec -i pytorch-ci-build bash --norc --noprofile -eux -o pipefail <<'EOF'
+          curl -fsSL http://ftp.fr.debian.org/debian/pool/main/m/make-dfsg/make_4.4.1-2_riscv64.deb -o /tmp/make_4.4.1-2_riscv64.deb
+          sudo dpkg -i /tmp/make_4.4.1-2_riscv64.deb
+          EOF
+
+          docker exec -t pytorch-ci-build sh -c '.ci/pytorch/build.sh'
 
           END_TIME=$(date +%s)
           echo "build_time=$((END_TIME - START_TIME))" >> "$GITHUB_OUTPUT"
