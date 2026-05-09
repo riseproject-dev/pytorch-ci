@@ -128,6 +128,7 @@ jobs:
             -e SCCACHE_COORDINATOR_REDIS_PASSWORD \
             -e USE_NINJA=${USE_NINJA} \
             -e SCCACHE_C_CUSTOM_CACHE_BUSTER="${SCCACHE_C_CUSTOM_CACHE_BUSTER}" \
+            -e SCCACHE_LOG="sccache=debug,sccache::coordinator=trace,sccache::server=info" \
             -e XLA_CUDA="${XLA_CUDA}" \
             -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
             -e SKIP_SCCACHE_INITIALIZATION=1 \
