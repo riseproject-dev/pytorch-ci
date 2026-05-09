@@ -98,7 +98,6 @@ jobs:
           SCCACHE_COORDINATOR_REDIS_USERNAME: rise-pytorch-ci-cache
           SCCACHE_COORDINATOR_REDIS_PASSWORD: ${{ secrets.COORDINATOR_REDIS_PASSWORD }}
           USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
-          SCCACHE_RECACHE: 1 # DEBUG
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
@@ -124,7 +123,6 @@ jobs:
             -e SCCACHE_COORDINATOR_REDIS_ENDPOINT="${SCCACHE_COORDINATOR_REDIS_ENDPOINT}" \
             -e SCCACHE_COORDINATOR_REDIS_USERNAME="${SCCACHE_COORDINATOR_REDIS_USERNAME}" \
             -e SCCACHE_COORDINATOR_REDIS_PASSWORD \
-            -e SCCACHE_RECACHE=${SCCACHE_RECACHE} \
             -e USE_NINJA=${USE_NINJA} \
             -e XLA_CUDA="${XLA_CUDA}" \
             -e XLA_CLANG_CACHE_S3_BUCKET_NAME="${XLA_CLANG_CACHE_S3_BUCKET_NAME}" \
