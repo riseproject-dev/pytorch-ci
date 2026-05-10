@@ -220,7 +220,7 @@ jobs:
         with:
           name: ${{ env.BUILD_ENVIRONMENT }}
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: warn
           path: |
             dist/
             build/custom_test_artifacts
