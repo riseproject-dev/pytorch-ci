@@ -28,6 +28,10 @@ jobs:
   docker-builds:
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 360 # 6h
+    concurrency:
+      # group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      group: ${{ github.workflow_ref }}-${{ inputs.ref }}
+      cancel-in-progress: true
     permissions:
       packages: write
     steps:
