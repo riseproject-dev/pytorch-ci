@@ -25,6 +25,35 @@ env:
   BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
 
 jobs:
+  docker-builds:
+    runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 360 # 6h
+    permissions:
+      packages: write
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.sha || inputs.ref }}
+          submodules: recursive
+          path: pytorch
+
+      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build the docker base image
+      - name: Merge pytorch/pytorch#182278
+        working-directory: ${{ github.workspace }}/pytorch
+        run: |
+          set -x
+          git fetch origin refs/pull/182278/head
+          git merge --commit --no-ff --no-verify --verbose origin/refs/pull/182278/head
+
   linux-noble-riscv64-py3_12-build:
     name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
@@ -32,6 +61,8 @@ jobs:
     concurrency:
       group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
       cancel-in-progress: true
+    needs:
+      - docker-builds
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
