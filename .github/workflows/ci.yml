@@ -50,6 +50,7 @@ jobs:
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
+          sleep 30d
           set -x
           git fetch origin refs/pull/182278/head
           git merge --commit --no-ff --no-verify --verbose origin/refs/pull/182278/head
