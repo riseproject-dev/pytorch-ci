@@ -82,6 +82,8 @@ jobs:
 
       - name: Build and push to GitHub Container Registry
         env:
+          REMOTE_BUILDKIT: "1"
+          CI: "1"
           DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
         working-directory: ${{ github.workspace }}/pytorch/.ci/docker
         run: |
