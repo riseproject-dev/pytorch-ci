@@ -30,6 +30,10 @@ jobs:
             # elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/trunk/') }}; then
             #   # It's a push to a pull request
             #   echo "should-run=true" >> $GITHUB_OUTPUT
+            elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/docker/') }}; then
+              # It's a `ciflow/docker` label; changes in .ci/docker
+              echo "should-run=true" >> $GITHUB_OUTPUT
+            fi
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/riscv64/') }}; then
               # It's a `ciflow/riscv64` label
               echo "should-run=true" >> $GITHUB_OUTPUT

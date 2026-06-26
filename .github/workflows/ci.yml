@@ -29,16 +29,72 @@ jobs:
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 360 # 6h
     concurrency:
-      group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      # group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      group: ${{ github.workflow_ref }}-${{ inputs.ref }}
       cancel-in-progress: true
+    permissions:
+      packages: write
     outputs:
       docker-image: ${{ steps.tag.outputs.docker-image }}
     steps:
-      - name: Compute image tag
-        id: tag
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Setup GitHub user name and email
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.sha || inputs.ref }}
+          fetch-depth: 0 # require the full history
+          submodules: recursive
+          path: pytorch
+
+      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build the docker base image
+      - name: Merge pytorch/pytorch#182278
+        working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
-          echo "docker-image=${DOCKER_REGISTRY}/pytorch/ci:${DOCKER_IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
+          git fetch origin refs/pull/182278/head:native-riscv64-ci
+          git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
+
+      - name: Compute image tag
+        id: tag
+        working-directory: ${{ github.workspace }}/pytorch
+        run: |
+          set -x
+
+          echo "docker-image=${DOCKER_REGISTRY}/pytorch/ci:${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push to GitHub Container Registry
+        env:
+          REMOTE_BUILDKIT: "1"
+          CI: "1"
+          DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
+        working-directory: ${{ github.workspace }}/pytorch/.ci/docker
+        run: |
+          set -x
+
+          # Check if image already exists, if it does then skip building it
+          if docker manifest inspect "${DOCKER_IMAGE}"; then
+            exit 0
+          fi
+
+          ./build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
 
   linux-noble-riscv64-py3_12-build:
     name: linux-noble-riscv64-py3.12
