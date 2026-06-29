@@ -69,7 +69,7 @@ jobs:
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
-          git fetch --no-all --no-tags origin refs/pull/182278/head:native-riscv64-ci
+          git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
           git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
 
       - name: Compute image tag
@@ -140,7 +140,7 @@ jobs:
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           set -x
-          git fetch --no-all --no-tags origin refs/pull/182278/head:native-riscv64-ci
+          git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
           git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
 
       - name: Build
