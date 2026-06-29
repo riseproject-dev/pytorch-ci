@@ -61,6 +61,7 @@ jobs:
           repository: pytorch/pytorch
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 0 # require the full history
+          filter: blob:none
           submodules: recursive
           path: pytorch
 
