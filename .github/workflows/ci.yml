@@ -30,7 +30,7 @@ defaults:
 
 jobs:
   docker-builds:
-    runs-on: [ubuntu-24.04-riscv, rva23]
+    runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
     concurrency:
       # group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
@@ -139,7 +139,7 @@ jobs:
         working-directory: ${{ github.workspace }}/pytorch
         run: |
           git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
-          git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
+          git merge --commit --no-ff --no-verify --verbose native-riscv64-ci || sleep 30d
 
       - name: Build
         id: build
