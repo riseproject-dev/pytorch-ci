@@ -72,8 +72,7 @@ jobs:
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
-          git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
 
       - name: Compute image tag
         id: tag
@@ -138,8 +137,7 @@ jobs:
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
-          git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
 
       - name: Build
         id: build
