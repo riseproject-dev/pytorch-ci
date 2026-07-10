@@ -24,9 +24,13 @@ env:
   DOCKER_REGISTRY: ghcr.io/riseproject-dev
   DOCKER_IMAGE_NAME: pytorch-linux-noble-riscv64-py3.12-gcc14
 
+defaults:
+  run:
+    shell: bash --noprofile --norc -exo pipefail {0}
+
 jobs:
   docker-builds:
-    runs-on: ubuntu-24.04-riscv
+    runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
     concurrency:
       # group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
@@ -68,7 +72,6 @@ jobs:
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          set -x
           git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
           git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
 
@@ -76,8 +79,6 @@ jobs:
         id: tag
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          set -x
-
           echo "docker-image=${DOCKER_REGISTRY}/pytorch/ci:${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push to GitHub Container Registry
@@ -87,8 +88,6 @@ jobs:
           DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
         working-directory: ${{ github.workspace }}/pytorch/.ci/docker
         run: |
-          set -x
-
           # Check if image already exists, if it does then skip building it
           if docker manifest inspect "${DOCKER_IMAGE}"; then
             exit 0
@@ -139,7 +138,6 @@ jobs:
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          set -x
           git fetch --no-all --no-tags --no-recurse-submodules origin refs/pull/182278/head:native-riscv64-ci
           git merge --commit --no-ff --no-verify --verbose native-riscv64-ci
 
@@ -160,7 +158,6 @@ jobs:
           USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          set -x
           START_TIME=$(date +%s)
 
           # Leaving 1GB for the runner and other things
