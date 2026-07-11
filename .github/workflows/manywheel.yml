@@ -1,0 +1,92 @@
+name: manywheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The git ref to trigger the workflow on
+        required: true
+        type: string
+      sha:
+        description: |
+          The git sha to trigger the workflow on; it falls back to the ref
+        required: false
+        type: string
+
+run-name: manywheel - ${{ inputs.ref }}
+
+permissions:
+  contents: read
+  packages: read
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -exo pipefail {0}
+
+jobs:
+  docker-builds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360 # 6h
+    concurrency:
+      group: docker-builds-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      cancel-in-progress: true
+    permissions:
+      packages: write
+    outputs:
+      docker-image: ${{ steps.tag.outputs.docker-image }}
+    env:
+      DOCKER_IMAGE_NAME: manylinux2_39_riscv64-builder:cpu-riscv64
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Setup GitHub user name and email
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.sha || inputs.ref }}
+          fetch-depth: 2147483647 # require the full history
+          submodules: recursive
+          path: pytorch
+
+      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
+      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
+        working-directory: ${{ github.workspace }}/pytorch
+        run: |
+          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
+
+      - name: Compute image tag
+        id: tag
+        working-directory: ${{ github.workspace }}/pytorch
+        run: |
+          echo "docker-image=ghcr.io/riseproject-dev/pytorch/${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push to GitHub Container Registry
+        env:
+          REMOTE_BUILDKIT: "1"
+          CI: "1"
+          DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
+        working-directory: ${{ github.workspace }}/pytorch/.ci/docker
+        run: |
+          # Check if image already exists, if it does then skip building it
+          if docker manifest inspect "${DOCKER_IMAGE}"; then
+            exit 0
+          fi
+
+          ./manywheel/build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"

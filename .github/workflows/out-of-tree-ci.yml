@@ -26,27 +26,42 @@ jobs:
             echo "ref=${{ github.event.client_payload.payload.ref }}" >> $GITHUB_OUTPUT
             if ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/trunk/') && github.event.client_payload.payload.base_ref == 'refs/heads/main' }}; then
               # It's a push to refs/heads/main
-              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "should-run-ci=true" >> $GITHUB_OUTPUT
             # elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/trunk/') }}; then
             #   # It's a push to a pull request
-            #   echo "should-run=true" >> $GITHUB_OUTPUT
+            #   echo "should-run-ci=true" >> $GITHUB_OUTPUT
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/docker/') }}; then
               # It's a `ciflow/docker` label; changes in .ci/docker
-              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "should-run-ci=true" >> $GITHUB_OUTPUT
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/riscv64/') }}; then
               # It's a `ciflow/riscv64` label
-              echo "should-run=true" >> $GITHUB_OUTPUT
+              echo "should-run-ci=true" >> $GITHUB_OUTPUT
+            elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/binaries/') || startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/binaries_wheel/') }}; then
+              # It's a `ciflow/binaries` label
+              echo "should-run-manywheel=true" >> $GITHUB_OUTPUT
             fi
           fi
 
       - name: Trigger CI workflow
-        if: steps.setup.outputs.should-run == 'true'
+        if: steps.setup.outputs.should-run-ci == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh api
           --method POST
           /repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches
+          -f 'ref=${{ github.event.repository.default_branch }}'
+          -f 'inputs[ref]=${{ steps.setup.outputs.ref }}'
+          -f 'inputs[sha]=${{ steps.setup.outputs.sha }}'
+
+      - name: Trigger manywheel workflow
+        if: steps.setup.outputs.should-run-manywheel == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api
+          --method POST
+          /repos/${{ github.repository }}/actions/workflows/manywheel.yml/dispatches
           -f 'ref=${{ github.event.repository.default_branch }}'
           -f 'inputs[ref]=${{ steps.setup.outputs.ref }}'
           -f 'inputs[sha]=${{ steps.setup.outputs.sha }}'

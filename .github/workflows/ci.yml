@@ -19,11 +19,6 @@ permissions:
   contents: read
   packages: read
 
-env:
-  # FIXME: switch to ghcr.io to pull ghcr.io/pytorch/ci-image once https://github.com/pytorch/pytorch/pull/182278 has been merged
-  DOCKER_REGISTRY: ghcr.io/riseproject-dev
-  DOCKER_IMAGE_NAME: pytorch-linux-noble-riscv64-py3.12-gcc14
-
 defaults:
   run:
     shell: bash --noprofile --norc -exo pipefail {0}
@@ -33,13 +28,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
     concurrency:
-      group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
-      # group: ${{ github.workflow_ref }}-${{ inputs.ref }}
+      group: docker-builds-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
       cancel-in-progress: true
     permissions:
       packages: write
     outputs:
       docker-image: ${{ steps.tag.outputs.docker-image }}
+    env:
+      DOCKER_IMAGE_NAME: pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
@@ -68,7 +64,8 @@ jobs:
           submodules: recursive
           path: pytorch
 
-      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build the docker base image
+      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch;
+      #        see https://github.com/pytorch/pytorch/pull/182278 for details
       - name: Merge pytorch/pytorch#182278
         working-directory: ${{ github.workspace }}/pytorch
         run: |
@@ -78,7 +75,7 @@ jobs:
         id: tag
         working-directory: ${{ github.workspace }}/pytorch
         run: |
-          echo "docker-image=${DOCKER_REGISTRY}/pytorch/ci:${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
+          echo "docker-image=ghcr.io/riseproject-dev/pytorch/ci:${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push to GitHub Container Registry
         env:
@@ -99,7 +96,7 @@ jobs:
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
     concurrency:
-      group: ${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      group: linux-noble-riscv64-py3_12-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
       cancel-in-progress: true
     needs:
       - docker-builds
