@@ -88,3 +88,76 @@ jobs:
 
           cd .ci/docker
           ./manywheel/build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
+
+  linux-riscv64-binary-manywheel:
+    name: linux-riscv64-binary-manywheel
+    runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 1440 # 24h
+    concurrency:
+      group: linux-riscv64-binary-manywheel-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      cancel-in-progress: true
+    needs:
+      - docker-builds
+    container:
+      image: ${{ needs.docker-builds.outputs.docker-image }}
+    env:
+      BUILD_ENVIRONMENT: linux-riscv64-binary-manywheel
+      PYTORCH_ROOT: ${{ github.workspace }}
+      PACKAGE_TYPE: manywheel
+      DESIRED_CUDA: cpu
+      GPU_ARCH_VERSION: ""
+      GPU_ARCH_TYPE: cpu-riscv64
+      DOCKER_IMAGE: ${{ needs.docker-builds.outputs.docker-image }}
+      SKIP_ALL_TESTS: 1
+      # DESIRED_PYTHONS: "3.10 3.11 3.12 3.13 3.14 3.14t 3.15 3.15t"
+      DESIRED_PYTHONS: "3.12"
+      BUILD_NAME_PREFIX: "manywheel-py"
+      BUILD_NAME_SUFFIX: "-cpu-riscv64"
+
+    steps:
+      - name: Setup GitHub user name and email
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.sha || inputs.ref }}
+          fetch-depth: 2147483647 # require the full history
+          submodules: recursive
+
+      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
+      - name: Merge pytorch/pytorch#182278
+        run: |
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
+
+      - name: Populate binary env
+        shell: bash
+        run: |
+          export PYTORCH_FINAL_PACKAGE_DIR="${RUNNER_TEMP}/artifacts"
+          mkdir -p "${PYTORCH_FINAL_PACKAGE_DIR}"
+          echo "PYTORCH_FINAL_PACKAGE_DIR=${PYTORCH_FINAL_PACKAGE_DIR}" >> "${GITHUB_ENV}"
+          bash .ci/pytorch/binary_populate_env.sh
+
+      - name: Build all wheels
+        id: build
+        run: |
+          # shellcheck disable=SC1091
+          source "${BINARY_ENV_FILE}"
+          bash .ci/manywheel/build_all.sh
+
+      - name: Store PyTorch Build Artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.build.outcome != 'skipped'
+        with:
+          name: ${{ env.BUILD_ENVIRONMENT }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            dist/
+            build/custom_test_artifacts
+            build/lib
+            build/bin
+            .additional_ci_files
