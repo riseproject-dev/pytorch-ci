@@ -62,7 +62,6 @@ jobs:
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 2147483647 # require the full history
           submodules: recursive
-          path: pytorch
 
       # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
       - name: Merge riseproject-dev/pytorch:manywheel-riscv64
