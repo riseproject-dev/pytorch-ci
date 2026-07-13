@@ -62,18 +62,15 @@ jobs:
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 2147483647 # require the full history
           submodules: recursive
-          path: pytorch
 
       # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch;
       #        see https://github.com/pytorch/pytorch/pull/182278 for details
       - name: Merge pytorch/pytorch#182278
-        working-directory: ${{ github.workspace }}/pytorch
         run: |
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
 
       - name: Compute image tag
         id: tag
-        working-directory: ${{ github.workspace }}/pytorch
         run: |
           echo "docker-image=ghcr.io/riseproject-dev/pytorch/ci:${DOCKER_IMAGE_NAME}-$(git rev-parse HEAD:.ci/docker)" >> "${GITHUB_OUTPUT}"
 
@@ -82,13 +79,13 @@ jobs:
           REMOTE_BUILDKIT: "1"
           CI: "1"
           DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
-        working-directory: ${{ github.workspace }}/pytorch/.ci/docker
         run: |
           # Check if image already exists, if it does then skip building it
           if docker manifest inspect "${DOCKER_IMAGE}"; then
             exit 0
           fi
 
+          cd .ci/docker
           ./build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
 
   linux-noble-riscv64-py3_12-build:
@@ -119,9 +116,6 @@ jobs:
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
 
-      - name: Checkout Repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Checkout PyTorch Repository at ${{ inputs.ref }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -129,11 +123,9 @@ jobs:
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 2147483647 # require the full history
           submodules: recursive
-          path: pytorch
 
       # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
       - name: Merge pytorch/pytorch#182278
-        working-directory: ${{ github.workspace }}/pytorch
         run: |
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
 
@@ -152,7 +144,6 @@ jobs:
           SCCACHE_COORDINATOR_REDIS_USERNAME: rise-pytorch-ci-cache
           SCCACHE_COORDINATOR_REDIS_PASSWORD: ${{ secrets.COORDINATOR_REDIS_PASSWORD }}
           USE_NINJA: 0 # it doesn't interact well with the coordinator jobserver
-        working-directory: ${{ github.workspace }}/pytorch
         run: |
           START_TIME=$(date +%s)
 
