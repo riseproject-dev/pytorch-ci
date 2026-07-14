@@ -25,7 +25,7 @@ defaults:
 
 jobs:
   docker-builds:
-    runs-on: ubuntu-24.04-riscv
+    runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
     concurrency:
       group: docker-builds-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
