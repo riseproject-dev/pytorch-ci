@@ -136,11 +136,12 @@ jobs:
         run: |
           git config --global safe.directory '*'
 
-      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
-      - name: Merge pytorch/pytorch#182278
+      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
+      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
         working-directory: pytorch
         run: |
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
+          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
 
       - name: Populate binary env
         shell: bash
