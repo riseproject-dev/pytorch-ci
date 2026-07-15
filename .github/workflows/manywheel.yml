@@ -117,7 +117,7 @@ jobs:
       BUILD_NAME_SUFFIX: "-cpu-riscv64"
 
     steps:
-      - name: Setup GitHub user name and email
+      - name: Setup GitHub user.name and user.email
         run: |
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
@@ -129,6 +129,10 @@ jobs:
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 2147483647 # require the full history
           submodules: recursive
+
+      - name: Setup GitHub safe.directory
+        run: |
+          git config --global safe.directory '*'
 
       # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
       - name: Merge pytorch/pytorch#182278
