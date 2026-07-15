@@ -104,7 +104,7 @@ jobs:
       image: ${{ needs.docker-builds.outputs.docker-image }}
     env:
       BUILD_ENVIRONMENT: linux-riscv64-binary-manywheel
-      PYTORCH_ROOT: ${{ github.workspace }}
+      PYTORCH_ROOT: ${{ github.workspace }}/pytorch
       PACKAGE_TYPE: manywheel
       DESIRED_CUDA: cpu
       GPU_ARCH_VERSION: ""
@@ -129,6 +129,7 @@ jobs:
           ref: ${{ inputs.sha || inputs.ref }}
           fetch-depth: 2147483647 # require the full history
           submodules: recursive
+          path: pytorch
 
       - name: Setup git safe.directory
         run: |
@@ -136,11 +137,13 @@ jobs:
 
       # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
       - name: Merge pytorch/pytorch#182278
+        working-directory: pytorch
         run: |
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
 
       - name: Populate binary env
         shell: bash
+        working-directory: pytorch
         run: |
           export PYTORCH_FINAL_PACKAGE_DIR="${RUNNER_TEMP}/artifacts"
           mkdir -p "${PYTORCH_FINAL_PACKAGE_DIR}"
@@ -149,6 +152,7 @@ jobs:
 
       - name: Build all wheels
         id: build
+        working-directory: pytorch
         run: |
           # shellcheck disable=SC1091
           source "${BINARY_ENV_FILE}"
@@ -162,8 +166,8 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
-            dist/
-            build/custom_test_artifacts
-            build/lib
-            build/bin
-            .additional_ci_files
+            pytorch/dist/
+            pytorch/build/custom_test_artifacts
+            pytorch/build/lib
+            pytorch/build/bin
+            pytorch/.additional_ci_files
