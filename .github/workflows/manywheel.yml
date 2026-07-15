@@ -105,6 +105,7 @@ jobs:
     env:
       BUILD_ENVIRONMENT: linux-riscv64-binary-manywheel
       PYTORCH_ROOT: ${{ github.workspace }}/pytorch
+      BINARY_ENV_FILE: /tmp/env
       PACKAGE_TYPE: manywheel
       DESIRED_CUDA: cpu
       GPU_ARCH_VERSION: ""
