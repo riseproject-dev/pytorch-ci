@@ -143,6 +143,9 @@ jobs:
           git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
 
+      - name: Set MAX_JOBS=$(nproc)
+        run: echo "MAX_JOBS=$(nproc)" >> "${GITHUB_ENV}"
+
       - name: Populate binary env
         shell: bash
         working-directory: pytorch
