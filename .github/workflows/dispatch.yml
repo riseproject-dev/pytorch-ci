@@ -36,6 +36,9 @@ jobs:
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/riscv64/') }}; then
               # It's a `ciflow/riscv64` label
               echo "should-run-ci=true" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.event.client_payload.payload.ref }}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+              # It's a `v*.*.*(-rc*)?` release tag
+              echo "should-run-manywheel=true" >> $GITHUB_OUTPUT
             elif ${{ startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/binaries/') || startsWith(github.event.client_payload.payload.ref, 'refs/tags/ciflow/binaries_wheel/') }}; then
               # It's a `ciflow/binaries` label
               echo "should-run-manywheel=true" >> $GITHUB_OUTPUT
