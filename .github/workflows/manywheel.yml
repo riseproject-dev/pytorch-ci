@@ -93,6 +93,9 @@ jobs:
     name: linux-riscv64-binary-manywheel
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14", "3.14t"]
     concurrency:
       group: linux-riscv64-binary-manywheel-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
       cancel-in-progress: true
@@ -111,16 +114,11 @@ jobs:
       DOCKER_IMAGE: ${{ needs.docker-builds.outputs.docker-image }}
       SKIP_ALL_TESTS: 1
       # DESIRED_PYTHONS: "3.10 3.11 3.12 3.13 3.14 3.14t 3.15 3.15t"
-      DESIRED_PYTHONS: "3.12"
+      DESIRED_PYTHONS: ${{ matrix.python-version }}
       BUILD_NAME_PREFIX: "manywheel-py"
       BUILD_NAME_SUFFIX: "-cpu-riscv64"
 
     steps:
-      - name: Setup git user.name and user.email
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-
       - name: Checkout PyTorch Repository at ${{ inputs.ref }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -130,8 +128,11 @@ jobs:
           submodules: recursive
           path: pytorch
 
-      - name: Setup git safe.directory
+      - name: Setup git
+        working-directory: pytorch
         run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git config --global safe.directory '*'
 
       # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
@@ -141,18 +142,21 @@ jobs:
           git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
 
-      - name: Set MAX_JOBS=$(nproc)
-        run: echo "MAX_JOBS=$(nproc)" >> "${GITHUB_ENV}"
-
       - name: Populate binary env
         shell: bash
         working-directory: pytorch
         run: |
+          # MAX_JOBS
+          echo "MAX_JOBS=$(nproc)" >> "${GITHUB_ENV}"
+
+          # PYTORCH_FINAL_PACKAGE_DIR
           export PYTORCH_FINAL_PACKAGE_DIR="${RUNNER_TEMP}/artifacts"
           mkdir -p "${PYTORCH_FINAL_PACKAGE_DIR}"
           echo "PYTORCH_FINAL_PACKAGE_DIR=${PYTORCH_FINAL_PACKAGE_DIR}" >> "${GITHUB_ENV}"
+
           bash .ci/pytorch/binary_populate_env.sh
 
+      # We build each wheel in a separate job to parallelize the builds.
       - name: Build all wheels
         id: build
         working-directory: pytorch
@@ -161,16 +165,14 @@ jobs:
           source "${BINARY_ENV_FILE}"
           bash .ci/manywheel/build_all.sh
 
-      - name: Store PyTorch Build Artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Set manywheel artifact name
+        id: artifact-name
+        run: |
+          echo "wheel=manywheel-py$(echo ${{ matrix.python-version }} | tr '.' '_')-cpu-riscv64" >> "${GITHUB_OUTPUT}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: steps.build.outcome != 'skipped'
         with:
-          name: ${{ env.BUILD_ENVIRONMENT }}
-          retention-days: 14
-          if-no-files-found: warn
-          path: |
-            pytorch/dist/
-            pytorch/build/custom_test_artifacts
-            pytorch/build/lib
-            pytorch/build/bin
-            pytorch/.additional_ci_files
+          name: ${{ steps.artifact-name.outputs.wheel }}
+          if-no-files-found: error
+          path: ${{ runner.temp }}/artifacts/${{ steps.artifact-name.outputs.wheel }}/*
