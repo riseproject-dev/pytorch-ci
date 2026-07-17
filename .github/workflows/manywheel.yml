@@ -77,6 +77,7 @@ jobs:
       - name: Build and push to GitHub Container Registry
         env:
           REMOTE_BUILDKIT: "1"
+          WITH_PUSH: "true"
           CI: "1"
           DOCKER_IMAGE: ${{ steps.tag.outputs.docker-image }}
         run: |
@@ -87,9 +88,6 @@ jobs:
 
           cd .ci/docker
           ./manywheel/build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
-
-          # manywheel/build.sh doesn't push by default
-          docker push ${DOCKER_IMAGE}
 
   linux-riscv64-binary-manywheel:
     name: linux-riscv64-binary-manywheel
