@@ -136,6 +136,12 @@ jobs:
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git config --global safe.directory '*'
 
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
+        with:
+          create-symlink: true
+          key: linux-riscv64-binary-manywheel-build-${{ matrix.python-version }}
+
       # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
       - name: Merge riseproject-dev/pytorch:manywheel-riscv64
         working-directory: pytorch
