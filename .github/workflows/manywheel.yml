@@ -159,7 +159,8 @@ jobs:
         working-directory: pytorch
         run: |
           # MAX_JOBS
-          echo "MAX_JOBS=$(nproc)" >> "${GITHUB_ENV}"
+          export MAX_JOBS=$(nproc)
+          echo "MAX_JOBS=${MAX_JOBS}" >> "${GITHUB_ENV}"
 
           # PYTORCH_FINAL_PACKAGE_DIR
           export PYTORCH_FINAL_PACKAGE_DIR="${RUNNER_TEMP}/artifacts"
