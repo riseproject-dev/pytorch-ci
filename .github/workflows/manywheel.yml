@@ -94,10 +94,11 @@ jobs:
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14", "3.14t"]
     concurrency:
-      group: linux-riscv64-binary-manywheel-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
+      group: linux-riscv64-binary-manywheel-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}-${{ matrix.python-version }}
       cancel-in-progress: true
     needs:
       - docker-builds
