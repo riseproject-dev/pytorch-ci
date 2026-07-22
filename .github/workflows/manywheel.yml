@@ -136,6 +136,13 @@ jobs:
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git config --global safe.directory '*'
 
+      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
+      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
+        working-directory: pytorch
+        run: |
+          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
+
       - name: Install ccache
         run: |
           CCACHE_VERSION=4.13.6
@@ -146,13 +153,6 @@ jobs:
         uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
         with:
           key: linux-riscv64-binary-manywheel-build-${{ matrix.python-version }}
-
-      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
-        working-directory: pytorch
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
 
       - name: Populate binary env
         shell: bash
@@ -170,7 +170,7 @@ jobs:
           bash .ci/pytorch/binary_populate_env.sh
 
       # We build each wheel in a separate job to parallelize the builds.
-      - name: Build all wheels
+      - name: Build
         id: build
         working-directory: pytorch
         run: |
