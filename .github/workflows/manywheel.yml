@@ -143,16 +143,12 @@ jobs:
           git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
           git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
 
-      - name: Install ccache
+      - name: Install sccache
         run: |
-          CCACHE_VERSION=4.13.6
-          curl -fsSL https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/ccache-${CCACHE_VERSION}-linux-riscv64-musl-static.tar.gz |
-            sudo tar -xvzf - -C /usr/local/bin --strip-components=1 ccache-${CCACHE_VERSION}-linux-riscv64-musl-static/ccache
-
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
-        with:
-          key: linux-riscv64-binary-manywheel-build-${{ matrix.python-version }}
+          SCCACHE_VERSION="0.16.0"
+          # download sccache with coordinator support
+          curl -fsSL https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-riscv64gc-unknown-linux-musl.tar.gz | \
+            sudo tar -xvzf - -C /usr/local/bin --strip-components 1 --wildcards sccache-v${SCCACHE_VERSION}-riscv64gc-unknown-linux-musl/sccache
 
       - name: Populate binary env
         shell: bash
@@ -172,6 +168,13 @@ jobs:
       # We build each wheel in a separate job to parallelize the builds.
       - name: Build
         id: build
+        env:
+          # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCCACHE_BUCKET: rise-pytorch-ci-cache
+          SCCACHE_REGION: fr-par
+          SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
         working-directory: pytorch
         run: |
           # shellcheck disable=SC1091
