@@ -121,11 +121,12 @@ jobs:
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git config --global safe.directory '*'
 
-      # https://github.com/pytorch/pytorch/pull/182278 has the necessary patches to build RISC-V natively
-      - name: Merge pytorch/pytorch#182278
+      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch
+      - name: Merge riseproject-dev/pytorch:native-riscv64-ci
         working-directory: pytorch
         run: |
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose origin refs/pull/182278/head
+          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev native-riscv64-ci
 
       # Install dependencies necessary for sccache build coordinatorQ
       - name: Install sccache
