@@ -26,6 +26,8 @@ Triggered by the dispatch receiver (or manually via `workflow_dispatch`) with a 
 
 **`linux-noble-riscv64-py3_12-build` job** — Runs on `ubuntu-24.04-riscv` self-hosted runners. Checks out `pytorch/pytorch` at the given ref, merges [pytorch/pytorch#182278](https://github.com/pytorch/pytorch/pull/182278) (in-flight RISC-V patches), then builds PyTorch inside the Docker container using `.ci/pytorch/build.sh`. Build artifacts (`dist/`, `build/lib`, `build/bin`) are uploaded as GitHub Actions artifacts with a 14-day retention.
 
+**`linux-noble-riscv64-py3_12-test` job** — Runs on `ubuntu-24.04-riscv` self-hosted runners, sharded across a 5-way `strategy.matrix` so shards run concurrently. Each shard downloads the build artifacts from `linux-noble-riscv64-py3_12-build`, installs the built wheel, and runs its slice of the test suite via `.ci/pytorch/test.sh` (mirroring `pytorch/pytorch`'s `_linux-test.yml`).
+
 ## Build caching
 
 The build uses a custom [sccache](https://github.com/luhenry/sccache) binary with a Redis-backed distributed coordinator, allowing multiple concurrent RISC-V build jobs to share compilation work. The cache bucket is hosted on Scaleway Object Storage (`s3.fr-par.scw.cloud`).

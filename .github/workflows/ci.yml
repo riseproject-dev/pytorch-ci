@@ -222,3 +222,91 @@ jobs:
             pytorch/build/lib
             pytorch/build/bin
             pytorch/.additional_ci_files
+
+  linux-noble-riscv64-py3_12-test:
+    name: linux-noble-riscv64-py3.12 / test (${{ matrix.shard }})
+    runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 1440 # 24h
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    concurrency:
+      group: linux-noble-riscv64-py3_12-test-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}-${{ matrix.shard }}
+      cancel-in-progress: true
+    needs:
+      - docker-builds
+      - linux-noble-riscv64-py3_12-build
+    container:
+      image: ${{ needs.docker-builds.outputs.docker-image }}
+      options: >
+        --user root
+    env:
+      DOCKER_IMAGE: ${{ needs.docker-builds.outputs.docker-image }}
+      BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
+      TEST_CONFIG: default
+      SHARD_NUMBER: ${{ matrix.shard }}
+      NUM_TEST_SHARDS: 5
+    steps:
+      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: pytorch/pytorch
+          ref: ${{ inputs.sha || inputs.ref }}
+          fetch-depth: 2147483647 # require the full history
+          submodules: recursive
+          path: pytorch
+
+      - name: Setup git
+        working-directory: pytorch
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git config --global safe.directory '*'
+
+      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch
+      - name: Merge riseproject-dev/pytorch:native-riscv64-ci
+        working-directory: pytorch
+        run: |
+          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
+          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev native-riscv64-ci
+
+      - name: Download PyTorch Build Artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ env.BUILD_ENVIRONMENT }}
+          path: pytorch
+
+      - name: Test
+        id: test
+        env:
+          BRANCH: ${{ inputs.ref }}
+          SHA1: ${{ inputs.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          GITHUB_JOB: ${{ github.job }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        working-directory: pytorch
+        run: |
+          # shellcheck disable=SC2046
+          python3 -m pip install $(echo dist/*.whl)[opt-einsum]
+          .ci/pytorch/test.sh
+
+      - name: Print remaining test logs
+        if: always() && steps.test.conclusion
+        working-directory: pytorch
+        run: |
+          cat test/**/*_toprint.log || true
+
+      - name: Store PyTorch Test Artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.test.conclusion && steps.test.conclusion != 'skipped'
+        with:
+          name: ${{ env.BUILD_ENVIRONMENT }}-test-${{ matrix.shard }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            pytorch/test/test-reports
