@@ -50,24 +50,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Setup git user.name and user.email
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-
-      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
+        uses: ./.github/actions/checkout-and-merge
         with:
-          repository: pytorch/pytorch
+          path: .
           ref: ${{ inputs.sha || inputs.ref }}
-          fetch-depth: 2147483647 # require the full history
-          submodules: recursive
-
-      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
+          branch: manywheel-riscv64
 
       - name: Compute image tag
         id: tag
@@ -120,28 +108,12 @@ jobs:
       BUILD_NAME_SUFFIX: "-cpu-riscv64"
 
     steps:
-      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
+        uses: ./.github/actions/checkout-and-merge
         with:
-          repository: pytorch/pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
-          fetch-depth: 2147483647 # require the full history
-          submodules: recursive
           path: pytorch
-
-      - name: Setup git
-        working-directory: pytorch
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git config --global safe.directory '*'
-
-      # FIXME: remove once riseproject-dev/pytorch:manywheel-riscv64 is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:manywheel-riscv64
-        working-directory: pytorch
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev manywheel-riscv64
+          ref: ${{ inputs.sha || inputs.ref }}
+          branch: manywheel-riscv64
 
       - name: Install sccache
         run: |

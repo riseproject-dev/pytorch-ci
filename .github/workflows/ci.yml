@@ -50,28 +50,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
+        uses: ./.github/actions/checkout-and-merge
         with:
-          repository: pytorch/pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
-          fetch-depth: 2147483647 # require the full history
-          submodules: recursive
           path: pytorch
-
-      - name: Setup git
-        working-directory: pytorch
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git config --global safe.directory '*'
-
-      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:native-riscv64-ci
-        working-directory: pytorch
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev native-riscv64-ci
+          ref: ${{ inputs.sha || inputs.ref }}
+          branch: native-riscv64-ci
 
       - name: Compute image tag
         id: tag
@@ -111,28 +95,12 @@ jobs:
       DOCKER_IMAGE: ${{ needs.docker-builds.outputs.docker-image }}
       BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
-      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
+        uses: ./.github/actions/checkout-and-merge
         with:
-          repository: pytorch/pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
-          fetch-depth: 2147483647 # require the full history
-          submodules: recursive
           path: pytorch
-
-      - name: Setup git
-        working-directory: pytorch
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git config --global safe.directory '*'
-
-      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:native-riscv64-ci
-        working-directory: pytorch
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev native-riscv64-ci
+          ref: ${{ inputs.sha || inputs.ref }}
+          branch: native-riscv64-ci
 
       # Install dependencies necessary for sccache build coordinatorQ
       - name: Install sccache
@@ -253,28 +221,12 @@ jobs:
       SHARD_NUMBER: ${{ matrix.shard }}
       NUM_TEST_SHARDS: 5
     steps:
-      - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
+        uses: ./.github/actions/checkout-and-merge
         with:
-          repository: pytorch/pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
-          fetch-depth: 2147483647 # require the full history
-          submodules: recursive
           path: pytorch
-
-      - name: Setup git
-        working-directory: pytorch
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git config --global safe.directory '*'
-
-      # FIXME: remove once riseproject-dev/pytorch:native-riscv64-ci is merged into pytorch/pytorch
-      - name: Merge riseproject-dev/pytorch:native-riscv64-ci
-        working-directory: pytorch
-        run: |
-          git remote add riseproject-dev https://github.com/riseproject-dev/pytorch.git
-          git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose riseproject-dev native-riscv64-ci
+          ref: ${{ inputs.sha || inputs.ref }}
+          branch: native-riscv64-ci
 
       - name: Download PyTorch Build Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

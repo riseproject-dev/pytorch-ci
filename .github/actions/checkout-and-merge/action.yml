@@ -1,0 +1,47 @@
+name: Checkout PyTorch and merge branch
+description: >
+  Checks out pytorch/pytorch at a given ref, configures git, and merges in a
+  branch from another repo (temporary workaround for CI patches not yet
+  merged into pytorch/pytorch).
+
+inputs:
+  path:
+    description: Path to checkout the repository to
+    required: true
+  ref:
+    description: The git ref or sha to checkout pytorch/pytorch at
+    required: true
+  repo:
+    description: The repo to merge from, in the form <owner>/<repo>
+    required: true
+  branch:
+    description: The branch of `repo` to merge into the checkout
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout PyTorch Repository at ${{ inputs.ref }}
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: pytorch/pytorch
+        ref: ${{ inputs.ref }}
+        fetch-depth: 2147483647 # require the full history
+        submodules: recursive
+        path: ${{ inputs.path }}
+
+    - name: Setup git
+      shell: bash --noprofile --norc -exo pipefail {0}
+      working-directory: ${{ inputs.path }}
+      run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+        git config --global safe.directory '*'
+
+    # FIXME: remove once ${{ inputs.repo }}:${{ inputs.branch }} is merged into pytorch/pytorch
+    - name: Merge ${{ inputs.repo }}:${{ inputs.branch }}
+      shell: bash --noprofile --norc -exo pipefail {0}
+      working-directory: ${{ inputs.path }}
+      run: |
+        git remote add checkout-and-merge-upstream "https://github.com/${{ inputs.repo }}.git"
+        git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose checkout-and-merge-upstream "${{ inputs.branch }}"
