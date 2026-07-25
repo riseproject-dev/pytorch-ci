@@ -23,13 +23,14 @@ defaults:
   run:
     shell: bash --noprofile --norc -exo pipefail {0}
 
+concurrency:
+  group: ${{ github.workflow_ref }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
 jobs:
   docker-builds:
     runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
-    concurrency:
-      group: docker-builds-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
-      cancel-in-progress: true
     permissions:
       packages: write
     outputs:
@@ -85,9 +86,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13", "3.14", "3.14t"]
-    concurrency:
-      group: linux-riscv64-binary-manywheel-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}-${{ matrix.python-version }}
-      cancel-in-progress: true
     needs:
       - docker-builds
     container:

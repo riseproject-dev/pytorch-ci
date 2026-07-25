@@ -23,13 +23,14 @@ defaults:
   run:
     shell: bash --noprofile --norc -exo pipefail {0}
 
+concurrency:
+  group: ${{ github.workflow_ref }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
 jobs:
   docker-builds:
     runs-on: ubuntu-24.04
     timeout-minutes: 360 # 6h
-    concurrency:
-      group: docker-builds-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
-      cancel-in-progress: true
     permissions:
       packages: write
     outputs:
@@ -82,9 +83,6 @@ jobs:
     name: linux-noble-riscv64-py3.12 / build
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
-    concurrency:
-      group: linux-noble-riscv64-py3_12-build-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}
-      cancel-in-progress: true
     needs:
       - docker-builds
     container:
@@ -204,9 +202,6 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5]
-    concurrency:
-      group: linux-noble-riscv64-py3_12-test-${{ github.workflow_ref }}-${{ github.workflow_sha }}-${{ inputs.ref }}-${{ matrix.shard }}
-      cancel-in-progress: true
     needs:
       - docker-builds
       - linux-noble-riscv64-py3_12-build
