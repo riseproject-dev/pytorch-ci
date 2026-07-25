@@ -1,8 +1,8 @@
 name: Checkout PyTorch and merge branch
 description: >
-  Checks out pytorch/pytorch at a given ref, configures git, and merges in a
-  branch from another repo (temporary workaround for CI patches not yet
-  merged into pytorch/pytorch).
+  Checks out pytorch/pytorch at a given ref, configures git, and cherry-picks
+  the commits unique to a branch from another repo (temporary workaround for CI
+  patches not yet merged into pytorch/pytorch).
 
 inputs:
   path:
@@ -11,11 +11,8 @@ inputs:
   ref:
     description: The git ref or sha to checkout pytorch/pytorch at
     required: true
-  repo:
-    description: The repo to merge from, in the form <owner>/<repo>
-    required: true
   branch:
-    description: The branch of `repo` to merge into the checkout
+    description: The branch of `repo` whose commits are cherry-picked into the checkout
     required: true
 
 runs:
@@ -38,10 +35,11 @@ runs:
         git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
         git config --global safe.directory '*'
 
-    # FIXME: remove once ${{ inputs.repo }}:${{ inputs.branch }} is merged into pytorch/pytorch
-    - name: Merge ${{ inputs.repo }}:${{ inputs.branch }}
+    # FIXME: remove once riseproject-dev/pytorch:${{ inputs.branch }} is merged into pytorch/pytorch
+    - name: Cherry-pick riseproject-dev/pytorch:${{ inputs.branch }}
       shell: bash --noprofile --norc -exo pipefail {0}
       working-directory: ${{ inputs.path }}
       run: |
-        git remote add checkout-and-merge-upstream "https://github.com/${{ inputs.repo }}.git"
-        git pull --commit --no-ff --no-verify --no-tags --no-recurse-submodules --verbose checkout-and-merge-upstream "${{ inputs.branch }}"
+        git remote add riseproject-dev "https://github.com/riseproject-dev/pytorch.git"
+        git fetch --no-tags --no-recurse-submodules riseproject-dev "${{ inputs.branch }}"
+        git cherry-pick HEAD..FETCH_HEAD
