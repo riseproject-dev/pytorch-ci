@@ -47,7 +47,7 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: ./.github/actions/checkout-and-merge
+        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
@@ -89,7 +89,7 @@ jobs:
       BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: ./.github/actions/checkout-and-merge
+        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
@@ -212,7 +212,7 @@ jobs:
       NUM_TEST_SHARDS: 5
     steps:
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: ./.github/actions/checkout-and-merge
+        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
         with:
           path: pytorch
           ref: ${{ inputs.ref }}

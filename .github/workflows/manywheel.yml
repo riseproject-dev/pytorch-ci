@@ -47,7 +47,7 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
-        uses: ./.github/actions/checkout-and-merge
+        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
         with:
           path: .
           ref: ${{ inputs.ref }}
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
-        uses: ./.github/actions/checkout-and-merge
+        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
