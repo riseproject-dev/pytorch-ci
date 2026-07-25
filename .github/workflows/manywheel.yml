@@ -7,11 +7,6 @@ on:
         description: The git ref to trigger the workflow on
         required: true
         type: string
-      sha:
-        description: |
-          The git sha to trigger the workflow on; it falls back to the ref
-        required: false
-        type: string
 
 run-name: manywheel - ${{ inputs.ref }}
 
@@ -55,7 +50,7 @@ jobs:
         uses: ./.github/actions/checkout-and-merge
         with:
           path: .
-          ref: ${{ inputs.sha || inputs.ref }}
+          ref: ${{ inputs.ref }}
           branch: manywheel-riscv64
 
       - name: Compute image tag
@@ -110,7 +105,7 @@ jobs:
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
+          ref: ${{ inputs.ref }}
           branch: manywheel-riscv64
 
       - name: Install sccache

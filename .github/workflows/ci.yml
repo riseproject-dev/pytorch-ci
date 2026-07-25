@@ -7,11 +7,6 @@ on:
         description: The git ref to trigger the workflow on
         required: true
         type: string
-      sha:
-        description: |
-          The git sha to trigger the workflow on; it falls back to the ref
-        required: false
-        type: string
 
 run-name: CI - ${{ inputs.ref }}
 
@@ -55,7 +50,7 @@ jobs:
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
+          ref: ${{ inputs.ref }}
           branch: native-riscv64-ci
 
       - name: Compute image tag
@@ -97,7 +92,7 @@ jobs:
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
+          ref: ${{ inputs.ref }}
           branch: native-riscv64-ci
 
       # Install dependencies necessary for sccache build coordinatorQ
@@ -160,7 +155,7 @@ jobs:
         id: build
         env:
           BRANCH: ${{ inputs.ref }}
-          SHA1: ${{ inputs.sha }}
+          # SHA1: # FIXME: pass SHA1 of HEAD branch
           # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
           AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
@@ -220,7 +215,7 @@ jobs:
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
-          ref: ${{ inputs.sha || inputs.ref }}
+          ref: ${{ inputs.ref }}
           branch: native-riscv64-ci
 
       - name: Download PyTorch Build Artifacts
@@ -233,7 +228,7 @@ jobs:
         id: test
         env:
           BRANCH: ${{ inputs.ref }}
-          SHA1: ${{ inputs.sha }}
+          # SHA1: # FIXME: pass SHA1 of HEAD branch
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_WORKFLOW: ${{ github.workflow }}
