@@ -79,7 +79,7 @@ jobs:
           ./build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
 
   linux-noble-riscv64-py3_12-build:
-    name: linux-noble-riscv64-py3.12
+    name: linux-noble-riscv64-py3.12 / build
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
     concurrency:
