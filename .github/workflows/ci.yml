@@ -196,7 +196,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     needs:
       - docker-builds
       - build
@@ -209,7 +209,7 @@ jobs:
       BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
       TEST_CONFIG: default
       SHARD_NUMBER: ${{ matrix.shard }}
-      NUM_TEST_SHARDS: 5
+      NUM_TEST_SHARDS: 10
     steps:
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
         uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
