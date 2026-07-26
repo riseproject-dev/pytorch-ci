@@ -7,6 +7,11 @@ on:
         description: The git ref to trigger the workflow on
         required: true
         type: string
+      enable-tests:
+        description: Whether to run tests
+        required: false
+        type: boolean
+        default: false
 
 run-name: CI - ${{ inputs.ref }}
 
@@ -191,6 +196,7 @@ jobs:
 
   test:
     name: linux-noble-riscv64-py3.12
+    if: ${{ inputs.enable-tests }}
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 360 # 6h
     strategy:
