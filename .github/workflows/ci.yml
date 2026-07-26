@@ -74,8 +74,8 @@ jobs:
           cd .ci/docker
           ./build.sh "${DOCKER_IMAGE_NAME}" -t "${DOCKER_IMAGE}"
 
-  linux-noble-riscv64-py3_12-build:
-    name: linux-noble-riscv64-py3.12 / build
+  build:
+    name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 1440 # 24h
     needs:
@@ -189,8 +189,8 @@ jobs:
             pytorch/build/bin
             pytorch/.additional_ci_files
 
-  linux-noble-riscv64-py3_12-test:
-    name: linux-noble-riscv64-py3.12 / test (${{ matrix.shard }})
+  test:
+    name: linux-noble-riscv64-py3.12
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 360 # 6h
     strategy:
@@ -199,7 +199,7 @@ jobs:
         shard: [1, 2, 3, 4, 5]
     needs:
       - docker-builds
-      - linux-noble-riscv64-py3_12-build
+      - build
     container:
       image: ${{ needs.docker-builds.outputs.docker-image }}
       options: >
