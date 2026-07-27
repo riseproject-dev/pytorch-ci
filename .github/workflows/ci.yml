@@ -38,6 +38,16 @@ jobs:
     env:
       DOCKER_IMAGE_NAME: pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
+      - name: Checkout pytorch-ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
+        uses: ./.github/actions/checkout-and-merge
+        with:
+          path: pytorch
+          ref: ${{ inputs.ref }}
+          branch: native-riscv64-ci
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
@@ -50,13 +60,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
-        with:
-          path: pytorch
-          ref: ${{ inputs.ref }}
-          branch: native-riscv64-ci
 
       - name: Compute image tag
         id: tag
@@ -93,8 +96,11 @@ jobs:
       DOCKER_IMAGE: ${{ needs.docker-builds.outputs.docker-image }}
       BUILD_ENVIRONMENT: pytorch-linux-noble-riscv64-py3.12-gcc14
     steps:
+      - name: Checkout pytorch-ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
+        uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
@@ -180,6 +186,18 @@ jobs:
           END_TIME=$(date +%s)
           echo "build_time=$((END_TIME - START_TIME))" >> "$GITHUB_OUTPUT"
 
+      # build.sh runs tools/stats/export_test_times.py, which downloads x86 test
+      # timings from test-infra. Replace them with timings measured on RISC-V.
+      - name: Install RISC-V test timings
+        if: steps.build.outcome != 'skipped'
+        run: |
+          mkdir -p pytorch/.additional_ci_files
+          cp test-times.json pytorch/.additional_ci_files/test-times.json
+          # We have no RISC-V class-level data, and get_duration() only trusts
+          # class times when *every* class in a file is known -- mixing x86 class
+          # times with RISC-V file times yields incoherent estimates.
+          rm -f pytorch/.additional_ci_files/test-class-times.json
+
       - name: Store PyTorch Build Artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: steps.build.outcome != 'skipped'
@@ -187,6 +205,7 @@ jobs:
           name: ${{ env.BUILD_ENVIRONMENT }}
           retention-days: 14
           if-no-files-found: warn
+          include-hidden-files: true
           path: |
             pytorch/dist/
             pytorch/build/custom_test_artifacts
@@ -198,7 +217,7 @@ jobs:
     name: linux-noble-riscv64-py3.12
     if: ${{ inputs.enable-tests }}
     runs-on: ubuntu-24.04-riscv
-    timeout-minutes: 360 # 6h
+    timeout-minutes: 720 # 12h
     strategy:
       fail-fast: false
       matrix:
@@ -216,9 +235,26 @@ jobs:
       TEST_CONFIG: default
       SHARD_NUMBER: ${{ matrix.shard }}
       NUM_TEST_SHARDS: 10
+      # TESTS_TO_EXCLUDE: >-
+      #   functorch/test_ops
+      #   functorch/test_vmap
+      #   inductor/test_aot_inductor_arrayref
+      #   inductor/test_compile_subprocess
+      #   inductor/test_torchinductor
+      #   inductor/test_torchinductor_dynamic_shapes
+      #   test_decomp
+      #   test_meta
+      #   test_ops_fwd_gradients
+      #   test_ops_gradients
+      #   test_proxy_tensor
+      #   test_sparse
+      #   test_transformers
     steps:
+      - name: Checkout pytorch-ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-ci
-        uses: riseproject-dev/pytorch-ci/.github/actions/checkout-and-merge@main
+        uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
           ref: ${{ inputs.ref }}

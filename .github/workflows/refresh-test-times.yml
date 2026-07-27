@@ -1,0 +1,147 @@
+name: Refresh test times
+
+# Rebuild test-times.json from the RISC-V test-report XMLs produced by recent
+# ci.yml runs, and open a PR with the result.
+#
+# This is the feedback loop that makes sharding self-correcting: as RISC-V gets
+# faster the timings track it, and the derived exclusion list shrinks. Without a
+# refresh the committed timings go stale and shards drift back out of balance.
+
+on:
+  schedule:
+    # Mondays. Deliberately not on the hour -- every cron that asks for "5am"
+    # lands on :00 and hits the API at the same instant as everyone else's.
+    - cron: "37 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: How many days of ci.yml runs to aggregate
+        required: false
+        type: string
+        default: "7"
+
+run-name: Refresh test times
+
+permissions:
+  contents: write # commit the branch the PR is opened from
+  pull-requests: write
+  actions: read # list runs and download their artifacts
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -exo pipefail {0}
+
+concurrency:
+  group: ${{ github.workflow_ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout pytorch-ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The aggregator needs PyTorch for two things: discover_tests, to map a
+      # sanitized report directory back to the name run_test.py uses, and
+      # calculate_shards, so the exclusion list is computed by the same algorithm
+      # CI will run. Subdirectory, not the workspace root -- actions/checkout
+      # wipes a directory that already holds a different repository.
+      - name: Checkout PyTorch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pytorch/pytorch
+          path: pytorch
+
+      - name: Collect test reports from recent ci.yml runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DAYS: ${{ inputs.days || '7' }}
+        run: |
+          since=$(date -u -d "${DAYS} days ago" +%F)
+          echo "Collecting ci.yml runs since ${since}"
+
+          # Deliberately not filtered on conclusion: cancelled and failed runs
+          # still upload their per-shard test reports, and they are the common
+          # case here (of 86 recent completed runs, 3 succeeded). Restricting to
+          # green runs would starve the aggregator. Truncated reports are handled
+          # downstream by the testcase-count filter in aggregate_test_times.py.
+          gh run list --workflow=ci.yml --created ">=${since}" --limit 200 \
+            --json databaseId --jq '.[].databaseId' > runs.txt
+          echo "Found $(wc -l < runs.txt) run(s)"
+
+          mkdir -p artifacts
+          while read -r id; do
+            # Most runs have no test artifacts (build-only, or expired), so a
+            # miss here is normal and must not fail the job.
+            if gh run download "$id" -D "artifacts/${id}" -p '*-test-*' 2>/dev/null; then
+              echo "  ${id}: $(find "artifacts/${id}" -name '*.xml' | wc -l) report(s)"
+            else
+              rmdir "artifacts/${id}" 2>/dev/null || true
+            fi
+          done < runs.txt
+
+          echo "total reports: $(find artifacts -name '*.xml' | wc -l)"
+
+      - name: Rebuild test-times.json
+        run: |
+          python3 tools/aggregate_test_times.py \
+            --artifacts artifacts \
+            --pytorch pytorch \
+            --merge-into test-times.json \
+            --output test-times.json \
+            --report
+
+      - name: Recompute the exclusion list
+        id: exclusions
+        run: |
+          # Informational: the list lives in ci.yml's TESTS_TO_EXCLUDE and is
+          # updated by hand from this output, so a shrinking list is a visible,
+          # reviewable event rather than a silent coverage change.
+          python3 tools/aggregate_test_times.py \
+            --artifacts artifacts \
+            --pytorch pytorch \
+            --merge-into test-times.json \
+            --exclusions --num-shards 10 --budget-hours 5.0 \
+            > exclusions.txt 2> exclusions.log || true
+          {
+            echo '### Suggested `TESTS_TO_EXCLUDE`'
+            echo
+            echo '```'
+            tr ' ' '\n' < exclusions.txt
+            echo '```'
+            echo
+            echo '<details><summary>How it was derived</summary>'
+            echo
+            echo '```'
+            tail -40 exclusions.log
+            echo '```'
+            echo
+            echo '</details>'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Open a pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          add-paths: test-times.json
+          branch: refresh-test-times
+          delete-branch: true
+          title: "Refresh RISC-V test timings"
+          commit-message: |
+            Refresh RISC-V test timings
+
+            Regenerated by .github/workflows/refresh-test-times.yml from the
+            test-report XMLs of recent ci.yml runs.
+          body: |
+            Regenerated `test-times.json` from the RISC-V test reports of the
+            past ${{ inputs.days || '7' }} days of `ci.yml` runs.
+
+            `run_test.py` uses these per-file timings to balance the test shards.
+            Check the job summary for the per-shard estimates and for the
+            exclusion list this data implies — if that list has shrunk,
+            `TESTS_TO_EXCLUDE` in `ci.yml` can be relaxed to re-enable tests.
+
+            A sane diff moves times by ~10%. A ~10x swing means the truncated-report
+            filter in `tools/aggregate_test_times.py` has regressed.
