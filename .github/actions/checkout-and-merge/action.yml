@@ -11,21 +11,30 @@ inputs:
   ref:
     description: The git ref or sha to checkout pytorch/pytorch at
     required: true
-  branch:
+  submodules:
+    description: Works as stated in actions/checkout, but the default value is recursive
+    required: false
+    default: recursive
+  merge-branch:
     description: The branch of `repo` whose commits are cherry-picked into the checkout
-    required: true
+    required: false
 
 runs:
   using: composite
   steps:
     - name: Checkout PyTorch Repository at ${{ inputs.ref }}
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      uses: pytorch/test-infra/.github/actions/checkout@main
       with:
         repository: pytorch/pytorch
         ref: ${{ inputs.ref }}
-        fetch-depth: 2147483647 # require the full history
-        submodules: recursive
-        path: ${{ inputs.path }}
+        fetch-depth: 0
+        single-branch: true
+        fetch-tags: false
+        submodules: ${{ inputs.submodules }}
+        show-progress: false
+        filter: 'tree:0' # treeless
+        submodules-filter: 'tree:0' # treeless
+        path: pytorch
 
     - name: Setup git
       shell: bash --noprofile --norc -exo pipefail {0}
@@ -35,11 +44,11 @@ runs:
         git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
         git config --global safe.directory '*'
 
-    # FIXME: remove once riseproject-dev/pytorch:${{ inputs.branch }} is merged into pytorch/pytorch
-    - name: Cherry-pick riseproject-dev/pytorch:${{ inputs.branch }}
+    - name: Cherry-pick riseproject-dev/pytorch:${{ inputs.merge-branch }}
+      if: ${{ inputs.merge-branch }}
       shell: bash --noprofile --norc -exo pipefail {0}
       working-directory: ${{ inputs.path }}
       run: |
         git remote add riseproject-dev "https://github.com/riseproject-dev/pytorch.git"
-        git fetch --no-tags --no-recurse-submodules riseproject-dev "${{ inputs.branch }}"
+        git fetch --no-tags --no-recurse-submodules riseproject-dev "${{ inputs.merge-branch }}"
         git cherry-pick HEAD..FETCH_HEAD

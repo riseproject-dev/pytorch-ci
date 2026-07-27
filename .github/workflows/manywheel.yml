@@ -41,7 +41,7 @@ jobs:
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
-          branch: manywheel-riscv64
+          merge-branch: manywheel-riscv64
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -114,7 +114,7 @@ jobs:
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
-          branch: manywheel-riscv64
+          merge-branch: manywheel-riscv64
 
       - name: Install sccache
         run: |
