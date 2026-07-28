@@ -215,7 +215,7 @@ jobs:
     name: linux-noble-riscv64-py3.12
     if: ${{ inputs.enable-tests }}
     runs-on: ubuntu-24.04-riscv
-    timeout-minutes: 720 # 12h
+    timeout-minutes: 1440 # 24h
     strategy:
       fail-fast: false
       matrix:
