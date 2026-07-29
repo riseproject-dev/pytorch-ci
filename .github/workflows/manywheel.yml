@@ -22,6 +22,14 @@ concurrency:
   group: ${{ github.workflow_ref }}-${{ inputs.ref }}
   cancel-in-progress: true
 
+env:
+  # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCCACHE_BUCKET: rise-pytorch-ci-cache
+  SCCACHE_REGION: fr-par
+  SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
+
 jobs:
   docker-builds:
     runs-on: ubuntu-24.04
@@ -141,13 +149,6 @@ jobs:
       # We build each wheel in a separate job to parallelize the builds.
       - name: Build
         id: build
-        env:
-          # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
-          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCCACHE_BUCKET: rise-pytorch-ci-cache
-          SCCACHE_REGION: fr-par
-          SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
         working-directory: pytorch
         run: |
           # shellcheck disable=SC1091

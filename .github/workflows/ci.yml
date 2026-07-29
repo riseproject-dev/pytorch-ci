@@ -26,6 +26,14 @@ concurrency:
   group: ${{ github.workflow_ref }}-${{ inputs.ref }}
   cancel-in-progress: true
 
+env:
+  # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCCACHE_BUCKET: rise-pytorch-ci-cache
+  SCCACHE_REGION: fr-par
+  SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
+
 jobs:
   docker-builds:
     runs-on: ubuntu-24.04
@@ -165,12 +173,6 @@ jobs:
         env:
           BRANCH: ${{ inputs.ref }}
           # SHA1: # FIXME: pass SHA1 of HEAD branch
-          # Do not set SCCACHE_S3_KEY_PREFIX to share the cache between all build jobs
-          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCCACHE_BUCKET: rise-pytorch-ci-cache
-          SCCACHE_REGION: fr-par
-          SCCACHE_ENDPOINT: https://s3.fr-par.scw.cloud
           SCCACHE_COORDINATOR_REDIS_ENDPOINT: tcp://62.210.239.26:6379
           SCCACHE_COORDINATOR_REDIS_USERNAME: rise-pytorch-ci-cache
           SCCACHE_COORDINATOR_REDIS_PASSWORD: ${{ secrets.COORDINATOR_REDIS_PASSWORD }}
