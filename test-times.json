@@ -313,6 +313,7 @@
       "inductor/test_torchinductor_codegen_config_overrides": 21.071,
       "inductor/test_torchinductor_codegen_dynamic_shapes": 3879.058,
       "inductor/test_torchinductor_dynamic_shapes": 1154.682,
+      "inductor/test_torchinductor_opinfo": 28800.0,
       "inductor/test_triton_extension_backend": 306.488,
       "inductor/test_triton_kernels": 1.899,
       "inductor/test_triton_launcher_integration": 2.191,
