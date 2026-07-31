@@ -44,12 +44,12 @@ jobs:
       - name: Checkout pytorch-ci
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-manywheel-1
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
-          merge-branch: manywheel-riscv64
+          merge-branch: native-riscv64-manywheel-1
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -117,12 +117,12 @@ jobs:
       - name: Checkout pytorch-ci
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:manywheel-riscv64
+      - name: Checkout PyTorch Repository and merge riseproject-dev/pytorch:native-riscv64-manywheel-1
         uses: ./.github/actions/checkout-and-merge
         with:
           path: pytorch
           ref: ${{ inputs.ref }}
-          merge-branch: manywheel-riscv64
+          merge-branch: native-riscv64-manywheel-1
 
       - name: Install sccache
         run: |
