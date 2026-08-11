@@ -32,7 +32,7 @@ runs:
         fetch-tags: false
         submodules: ${{ inputs.submodules }}
         show-progress: false
-        filter: 'tree:0' # treeless
+        filter: ${{ case(inputs.merge-branch != '', '', 'tree:0') }} # treeless iff we are not merging a branch
         submodules-filter: 'tree:0' # treeless
         path: pytorch
 
