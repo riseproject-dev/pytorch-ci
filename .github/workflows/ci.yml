@@ -91,7 +91,7 @@ jobs:
 
   build:
     name: linux-noble-riscv64-py3.12
-    runs-on: ubuntu-24.04-riscv
+    runs-on: [ubuntu-24.04-riscv, rva23, xlarge]
     timeout-minutes: 1440 # 24h
     needs:
       - docker-builds
@@ -216,7 +216,7 @@ jobs:
   test:
     name: linux-noble-riscv64-py3.12
     if: ${{ inputs.enable-tests }}
-    runs-on: ubuntu-24.04-riscv
+    runs-on: [ubuntu-24.04-riscv, rvv]
     timeout-minutes: 1440 # 24h
     strategy:
       fail-fast: false
